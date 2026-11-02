@@ -1,8 +1,11 @@
 import { createServerFn } from '@tanstack/react-start'
+import { getRequest } from '@tanstack/react-start/server'
 import { Effect, type Layer } from 'effect'
 
+import { publicOrigin } from '../auth.ts'
 import { explain, GarminLogin } from '../garmin/login.ts'
 import { GarminSync } from '../garmin/sync.ts'
+import { type GrantView, OAuth } from '../oauth/oauth.ts'
 import { Stats } from '../stats.ts'
 
 import { type layer, runtime } from './runtime.ts'
@@ -186,3 +189,23 @@ export const getSleep = createServerFn({ method: 'GET' })
     return { days: SLEEP_PERIODS.find((period) => period === days) ?? 30 }
   })
   .handler(({ data }) => run(Stats.use((stats) => stats.sleep(data.days))))
+
+export interface AccessView {
+  // The MCP's URL, to give to a client
+  readonly mcp: string
+  readonly grants: ReadonlyArray<GrantView>
+}
+
+// The applications allowed on the MCP through OAuth (see oauth/oauth.ts)
+export const getAccess = createServerFn({ method: 'GET' }).handler(() =>
+  run(
+    Effect.map(
+      OAuth.use((oauth) => oauth.grants),
+      (grants): AccessView => ({ mcp: `${publicOrigin(getRequest())}/mcp`, grants })
+    )
+  )
+)
+
+export const revokeAccess = createServerFn({ method: 'POST' })
+  .validator((input: unknown) => ({ id: string(input, 'id', 64) }))
+  .handler(({ data }) => run(OAuth.use((oauth) => oauth.revokeGrant(data.id))))

@@ -12,6 +12,7 @@
     "build": "vite build",
     "check": "./scripts/check.sh",
     "db:generate": "drizzle-kit generate --name",
+    "db:generate:auth": "drizzle-kit generate --config drizzle.auth.config.ts --name",
     "dev": "vite dev",
     "fix": "oxfmt . && oxlint --quiet --type-aware --fix --fix-dangerously --fix-suggestions",
     "format": "oxfmt --check",

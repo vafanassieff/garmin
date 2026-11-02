@@ -280,9 +280,29 @@ export const clientOf = (request: Request) => {
   return last === undefined || last === '' ? 'direct' : last
 }
 
+const LOCAL = ['localhost', '127.0.0.1', '[::1]']
+
 // The session cookie is Secure but on http://localhost (the app behind a TLS proxy sees http)
 export const secureCookie = (request: Request) =>
-  ['localhost', '127.0.0.1', '[::1]'].includes(new URL(request.url).hostname) ? '' : '; Secure'
+  LOCAL.includes(new URL(request.url).hostname) ? '' : '; Secure'
+
+// The app's address as its clients see it: https behind the TLS proxy, as is on localhost. The
+// MCP's URL (`${origin}/mcp`) is the resource OAuth tokens are for.
+export const publicOrigin = (request: Request) => {
+  const url = new URL(request.url)
+  return LOCAL.includes(url.hostname) ? url.origin : `https://${url.host}`
+}
+
+// The OAuth server's open endpoints (see oauth/oauth.ts): its metadata, the registration, the
+// token and revocation endpoints. They take no cookie: no CSRF.
+const OAUTH_OPEN: ReadonlySet<string> = new Set([
+  '/.well-known/oauth-protected-resource',
+  '/.well-known/oauth-protected-resource/mcp',
+  '/.well-known/oauth-authorization-server',
+  '/oauth/register',
+  '/oauth/token',
+  '/oauth/revoke',
+])
 
 // The session cookie for a browser
 export const sessionCookie = (request: Request, session: Session) =>
@@ -330,10 +350,12 @@ const crossSite = (request: Request, url: URL) => {
   }
 }
 
-// The health check is open; the MCP takes the password as a bearer token; a POST (or any other
-// method that changes something) from another site is refused; the login page, its form and the
-// built assets are open; everything else (pages, server functions) needs the web session, a page
-// redirecting to the login. Undefined lets the request through.
+// The health check is open; the MCP takes an OAuth access token or the password as a bearer
+// token, its 401 pointing to the OAuth metadata; the OAuth endpoints are open once a password
+// exists; a POST (or any other method that changes something) from another site is refused; the
+// login page, its form and the built assets are open; everything else (pages, /authorize, server
+// functions) needs the web session, a page redirecting to the login. Undefined lets the request
+// through.
 export const gate = async (
   request: Request,
   {
@@ -342,7 +364,7 @@ export const gate = async (
     verifySession,
   }: {
     readonly hasPassword: () => Promise<boolean>
-    readonly verifyBearer: (token: string, client: string) => Promise<Verdict>
+    readonly verifyBearer: (token: string, client: string, resource: string) => Promise<Verdict>
     readonly verifySession: (value: string) => Promise<boolean>
   }
 ): Promise<Response | undefined> => {
@@ -355,14 +377,23 @@ export const gate = async (
   // As the router matches it: any case, trailing slash
   if (/^\/mcp\/?$/iu.test(path)) {
     const token = /^Bearer (.+)$/iu.exec(request.headers.get('authorization') ?? '')?.[1]
+    const origin = publicOrigin(request)
     const verdict =
       token === undefined || !(await hasPassword())
         ? 'wrong'
-        : await verifyBearer(token, clientOf(request))
+        : await verifyBearer(token, clientOf(request), `${origin}/mcp`)
     if (verdict === 'ok') return undefined
-    return verdict === 'throttled'
-      ? text('Too many wrong passwords: try again in a minute\n', 429, { 'retry-after': '60' })
-      : text('Unauthorized\n', 401, { 'www-authenticate': 'Bearer' })
+    if (verdict === 'throttled') {
+      return text('Too many wrong passwords: try again in a minute\n', 429, { 'retry-after': '60' })
+    }
+    // RFC 9728: where the client finds how to get a token
+    const metadata = `resource_metadata="${origin}/.well-known/oauth-protected-resource/mcp"`
+    return text('Unauthorized\n', 401, {
+      'www-authenticate': `Bearer ${token === undefined ? '' : 'error="invalid_token", '}${metadata}, scope="mcp"`,
+    })
+  }
+  if (OAUTH_OPEN.has(path)) {
+    return (await hasPassword()) ? undefined : text('No password yet: choose it at /setup\n', 401)
   }
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && crossSite(request, url)) {
     return text('Forbidden: a request from another site\n', 403)

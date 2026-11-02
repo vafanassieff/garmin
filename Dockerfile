@@ -40,12 +40,13 @@ ENV GARMIN_SESSION_PATH=/session/garmin.json
 # The app's password's hash, chosen on the first visit (/setup): beside it, never under /data
 ENV PASSWORD_PATH=/session/password
 
-# drizzle/ and src/ are resolved from here (see src/db.ts, src/reader.ts)
+# drizzle/, drizzle-auth/ and src/ are resolved from here (see src/db.ts, src/reader.ts)
 WORKDIR /app
 
 COPY --from=dependencies --chown=node:node /app /app
 COPY --from=builder --chown=node:node /repo/.output /app/.output
 COPY --from=builder --chown=node:node /repo/drizzle /app/drizzle
+COPY --from=builder --chown=node:node /repo/drizzle-auth /app/drizzle-auth
 COPY --from=builder --chown=node:node /repo/src /app/src
 
 # Owned by the app for a fresh volume (a bind mount: chown 1000 it on the host)

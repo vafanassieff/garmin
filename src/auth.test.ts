@@ -165,7 +165,15 @@ describe('gate', () => {
     expect(await status('/auth/login', {}, 'POST')).toBeUndefined()
     expect(await status('/assets/index.js')).toBeUndefined()
     expect(await status('/mcp')).toBe(401)
-    expect(await status('/mcp', { authorization: 'Bearer nope' })).toBe(401)
+    const refused = await answer('/mcp', { authorization: 'Bearer nope' })
+    expect(refused?.status).toBe(401)
+    // RFC 9728: where to find the OAuth server
+    expect(refused?.headers.get('www-authenticate')).toBe(
+      'Bearer error="invalid_token", resource_metadata="https://garmin.test/.well-known/oauth-protected-resource/mcp", scope="mcp"'
+    )
+    expect((await answer('/mcp'))?.headers.get('www-authenticate')).toMatch(
+      /^Bearer resource_metadata="/u
+    )
     expect(await status('/mcp', { authorization: 'Bearer demo' })).toBeUndefined()
     expect(await status('/MCP/', { authorization: 'bearer demo' })).toBeUndefined()
     // The session cookie does not open the MCP
@@ -173,6 +181,44 @@ describe('gate', () => {
     const throttled = await answer('/mcp', { authorization: 'Bearer many' })
     expect(throttled?.status).toBe(429)
     expect(throttled?.headers.get('retry-after')).toBe('60')
+  })
+
+  it('opens the OAuth endpoints, not the consent', async () => {
+    for (const path of [
+      '/.well-known/oauth-protected-resource/mcp',
+      '/.well-known/oauth-authorization-server',
+    ]) {
+      expect(await status(path), path).toBeUndefined()
+    }
+    for (const path of ['/oauth/register', '/oauth/token', '/oauth/revoke']) {
+      expect(await status(path, {}, 'POST'), path).toBeUndefined()
+    }
+    // The consent needs the session, and its form this site
+    expect(
+      (await answer('/authorize?client_id=x', { accept: 'text/html' }))?.headers.get('location')
+    ).toBe('/login?next=%2Fauthorize%3Fclient_id%3Dx')
+    expect(await status('/oauth/authorize', {}, 'POST')).toBe(401)
+    expect(
+      await status(
+        '/oauth/authorize',
+        { cookie: 'garmin_web=ok', 'sec-fetch-site': 'cross-site' },
+        'POST'
+      )
+    ).toBe(403)
+    expect(
+      await status(
+        '/oauth/authorize',
+        { cookie: 'garmin_web=ok', 'sec-fetch-site': 'same-origin' },
+        'POST'
+      )
+    ).toBeUndefined()
+    // Not before a password exists
+    chosen = false
+    try {
+      expect(await status('/oauth/register', {}, 'POST')).toBe(401)
+    } finally {
+      chosen = true
+    }
   })
 
   it('offers only /setup until a password is chosen, never after', async () => {

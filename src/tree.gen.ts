@@ -10,6 +10,8 @@
 
 import { Route as rootRouteImport } from './routes/__root.tsx'
 import { Route as IndexRouteImport } from './routes/index.tsx'
+import { Route as AccessRouteImport } from './routes/access.tsx'
+import { Route as AuthorizeRouteImport } from './routes/authorize.ts'
 import { Route as GarminRouteImport } from './routes/garmin.tsx'
 import { Route as HealthzRouteImport } from './routes/healthz.ts'
 import { Route as LoginRouteImport } from './routes/login.tsx'
@@ -18,16 +20,31 @@ import { Route as PasswordRouteImport } from './routes/password.tsx'
 import { Route as RunsRouteImport } from './routes/runs.tsx'
 import { Route as SetupRouteImport } from './routes/setup.tsx'
 import { Route as SleepRouteImport } from './routes/sleep.tsx'
+import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known.$.ts'
 import { Route as ActivitiesIndexRouteImport } from './routes/activities.index.tsx'
 import { Route as ActivitiesIdRouteImport } from './routes/activities.$id.tsx'
 import { Route as AuthLoginRouteImport } from './routes/auth/login.ts'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout.ts'
 import { Route as AuthPasswordRouteImport } from './routes/auth/password.ts'
 import { Route as AuthSetupRouteImport } from './routes/auth/setup.ts'
+import { Route as OauthAuthorizeRouteImport } from './routes/oauth/authorize.ts'
+import { Route as OauthRegisterRouteImport } from './routes/oauth/register.ts'
+import { Route as OauthRevokeRouteImport } from './routes/oauth/revoke.ts'
+import { Route as OauthTokenRouteImport } from './routes/oauth/token.ts'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AccessRoute = AccessRouteImport.update({
+  id: '/access',
+  path: '/access',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthorizeRoute = AuthorizeRouteImport.update({
+  id: '/authorize',
+  path: '/authorize',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GarminRoute = GarminRouteImport.update({
@@ -70,6 +87,11 @@ const SleepRoute = SleepRouteImport.update({
   path: '/sleep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DotwellKnownSplatRoute = DotwellKnownSplatRouteImport.update({
+  id: '/.well-known/$',
+  path: '/.well-known/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ActivitiesIndexRoute = ActivitiesIndexRouteImport.update({
   id: '/activities/',
   path: '/activities/',
@@ -100,9 +122,31 @@ const AuthSetupRoute = AuthSetupRouteImport.update({
   path: '/auth/setup',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OauthAuthorizeRoute = OauthAuthorizeRouteImport.update({
+  id: '/oauth/authorize',
+  path: '/oauth/authorize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthRegisterRoute = OauthRegisterRouteImport.update({
+  id: '/oauth/register',
+  path: '/oauth/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthRevokeRoute = OauthRevokeRouteImport.update({
+  id: '/oauth/revoke',
+  path: '/oauth/revoke',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OauthTokenRoute = OauthTokenRouteImport.update({
+  id: '/oauth/token',
+  path: '/oauth/token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
+  '/authorize': typeof AuthorizeRoute
   '/garmin': typeof GarminRoute
   '/healthz': typeof HealthzRoute
   '/login': typeof LoginRoute
@@ -111,15 +155,22 @@ export interface FileRoutesByFullPath {
   '/runs': typeof RunsRoute
   '/setup': typeof SetupRoute
   '/sleep': typeof SleepRoute
+  '/.well-known/$': typeof DotwellKnownSplatRoute
   '/activities/$id': typeof ActivitiesIdRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
   '/auth/setup': typeof AuthSetupRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/revoke': typeof OauthRevokeRoute
+  '/oauth/token': typeof OauthTokenRoute
   '/activities/': typeof ActivitiesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
+  '/authorize': typeof AuthorizeRoute
   '/garmin': typeof GarminRoute
   '/healthz': typeof HealthzRoute
   '/login': typeof LoginRoute
@@ -128,16 +179,23 @@ export interface FileRoutesByTo {
   '/runs': typeof RunsRoute
   '/setup': typeof SetupRoute
   '/sleep': typeof SleepRoute
+  '/.well-known/$': typeof DotwellKnownSplatRoute
   '/activities/$id': typeof ActivitiesIdRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
   '/auth/setup': typeof AuthSetupRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/revoke': typeof OauthRevokeRoute
+  '/oauth/token': typeof OauthTokenRoute
   '/activities': typeof ActivitiesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/access': typeof AccessRoute
+  '/authorize': typeof AuthorizeRoute
   '/garmin': typeof GarminRoute
   '/healthz': typeof HealthzRoute
   '/login': typeof LoginRoute
@@ -146,17 +204,24 @@ export interface FileRoutesById {
   '/runs': typeof RunsRoute
   '/setup': typeof SetupRoute
   '/sleep': typeof SleepRoute
+  '/.well-known/$': typeof DotwellKnownSplatRoute
   '/activities/$id': typeof ActivitiesIdRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
   '/auth/setup': typeof AuthSetupRoute
+  '/oauth/authorize': typeof OauthAuthorizeRoute
+  '/oauth/register': typeof OauthRegisterRoute
+  '/oauth/revoke': typeof OauthRevokeRoute
+  '/oauth/token': typeof OauthTokenRoute
   '/activities/': typeof ActivitiesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/access'
+    | '/authorize'
     | '/garmin'
     | '/healthz'
     | '/login'
@@ -165,15 +230,22 @@ export interface FileRouteTypes {
     | '/runs'
     | '/setup'
     | '/sleep'
+    | '/.well-known/$'
     | '/activities/$id'
     | '/auth/login'
     | '/auth/logout'
     | '/auth/password'
     | '/auth/setup'
+    | '/oauth/authorize'
+    | '/oauth/register'
+    | '/oauth/revoke'
+    | '/oauth/token'
     | '/activities/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/access'
+    | '/authorize'
     | '/garmin'
     | '/healthz'
     | '/login'
@@ -182,15 +254,22 @@ export interface FileRouteTypes {
     | '/runs'
     | '/setup'
     | '/sleep'
+    | '/.well-known/$'
     | '/activities/$id'
     | '/auth/login'
     | '/auth/logout'
     | '/auth/password'
     | '/auth/setup'
+    | '/oauth/authorize'
+    | '/oauth/register'
+    | '/oauth/revoke'
+    | '/oauth/token'
     | '/activities'
   id:
     | '__root__'
     | '/'
+    | '/access'
+    | '/authorize'
     | '/garmin'
     | '/healthz'
     | '/login'
@@ -199,16 +278,23 @@ export interface FileRouteTypes {
     | '/runs'
     | '/setup'
     | '/sleep'
+    | '/.well-known/$'
     | '/activities/$id'
     | '/auth/login'
     | '/auth/logout'
     | '/auth/password'
     | '/auth/setup'
+    | '/oauth/authorize'
+    | '/oauth/register'
+    | '/oauth/revoke'
+    | '/oauth/token'
     | '/activities/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AccessRoute: typeof AccessRoute
+  AuthorizeRoute: typeof AuthorizeRoute
   GarminRoute: typeof GarminRoute
   HealthzRoute: typeof HealthzRoute
   LoginRoute: typeof LoginRoute
@@ -217,11 +303,16 @@ export interface RootRouteChildren {
   RunsRoute: typeof RunsRoute
   SetupRoute: typeof SetupRoute
   SleepRoute: typeof SleepRoute
+  DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute
   ActivitiesIdRoute: typeof ActivitiesIdRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
   AuthPasswordRoute: typeof AuthPasswordRoute
   AuthSetupRoute: typeof AuthSetupRoute
+  OauthAuthorizeRoute: typeof OauthAuthorizeRoute
+  OauthRegisterRoute: typeof OauthRegisterRoute
+  OauthRevokeRoute: typeof OauthRevokeRoute
+  OauthTokenRoute: typeof OauthTokenRoute
   ActivitiesIndexRoute: typeof ActivitiesIndexRoute
 }
 
@@ -232,6 +323,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/access': {
+      id: '/access'
+      path: '/access'
+      fullPath: '/access'
+      preLoaderRoute: typeof AccessRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/authorize': {
+      id: '/authorize'
+      path: '/authorize'
+      fullPath: '/authorize'
+      preLoaderRoute: typeof AuthorizeRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/garmin': {
@@ -290,6 +395,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SleepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/.well-known/$': {
+      id: '/.well-known/$'
+      path: '/.well-known/$'
+      fullPath: '/.well-known/$'
+      preLoaderRoute: typeof DotwellKnownSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/activities/': {
       id: '/activities/'
       path: '/activities'
@@ -332,11 +444,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthSetupRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/oauth/authorize': {
+      id: '/oauth/authorize'
+      path: '/oauth/authorize'
+      fullPath: '/oauth/authorize'
+      preLoaderRoute: typeof OauthAuthorizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/register': {
+      id: '/oauth/register'
+      path: '/oauth/register'
+      fullPath: '/oauth/register'
+      preLoaderRoute: typeof OauthRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/revoke': {
+      id: '/oauth/revoke'
+      path: '/oauth/revoke'
+      fullPath: '/oauth/revoke'
+      preLoaderRoute: typeof OauthRevokeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/oauth/token': {
+      id: '/oauth/token'
+      path: '/oauth/token'
+      fullPath: '/oauth/token'
+      preLoaderRoute: typeof OauthTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AccessRoute: AccessRoute,
+  AuthorizeRoute: AuthorizeRoute,
   GarminRoute: GarminRoute,
   HealthzRoute: HealthzRoute,
   LoginRoute: LoginRoute,
@@ -345,11 +487,16 @@ const rootRouteChildren: RootRouteChildren = {
   RunsRoute: RunsRoute,
   SetupRoute: SetupRoute,
   SleepRoute: SleepRoute,
+  DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ActivitiesIdRoute: ActivitiesIdRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthLogoutRoute: AuthLogoutRoute,
   AuthPasswordRoute: AuthPasswordRoute,
   AuthSetupRoute: AuthSetupRoute,
+  OauthAuthorizeRoute: OauthAuthorizeRoute,
+  OauthRegisterRoute: OauthRegisterRoute,
+  OauthRevokeRoute: OauthRevokeRoute,
+  OauthTokenRoute: OauthTokenRoute,
   ActivitiesIndexRoute: ActivitiesIndexRoute,
 }
 export const routeTree = rootRouteImport

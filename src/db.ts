@@ -35,11 +35,36 @@ const whileBusy = Schedule.min([
   Schedule.spaced('50 millis'),
 ]).pipe(Schedule.upTo({ duration: '30 seconds' }))
 
-// One SQLite file (DATABASE_PATH), migrated before anything uses it. node:sqlite is synchronous:
-// each call runs to completion, so a transaction never interleaves with another. WAL lets the MCP's
-// read-only connections and the CLIs work beside the app. A call never waits
-// for another connection's lock in place (that would block every request): it fails at once and
-// is run again after a pause, so each call must be one statement or one transaction.
+// A SQLite file over drizzle, migrated from `migrations` before anything uses it, closed with
+// the scope; foreign keys enforced when asked. node:sqlite is synchronous: each call runs to completion, so a transaction never
+// interleaves with another. A call never waits for another connection's lock in place (that would
+// block every request): it fails at once and is run again after a pause, so each call must be
+// one statement or one transaction.
+export const connect = (
+  path: string,
+  migrations: string,
+  { foreignKeys = false }: { readonly foreignKeys?: boolean } = {}
+) =>
+  Effect.gen(function* () {
+    const client = yield* Effect.acquireRelease(
+      Effect.try({
+        try: () => openDatabase(path, 0),
+        catch: (cause) => new DatabaseError({ cause }),
+      }),
+      (opened) => Effect.sync(() => opened.close())
+    )
+    if (foreignKeys) client.exec('PRAGMA foreign_keys = ON')
+    const db = drizzle({ client })
+    const use = <A>(run: (db: NodeSQLiteDatabase) => A) =>
+      Effect.try({ try: () => run(db), catch: (cause) => new DatabaseError({ cause }) }).pipe(
+        Effect.retry({ while: (error) => busy(error.cause), schedule: whileBusy })
+      )
+    yield* use((db) => migrate(db, { migrationsFolder: migrations }))
+    return { path, use }
+  })
+
+// The app's SQLite file (DATABASE_PATH). WAL lets the MCP's read-only connections and the CLIs
+// work beside the app.
 export class Database extends Context.Service<
   Database,
   {
@@ -54,20 +79,7 @@ export class Database extends Context.Service<
       // Health data: every file this process creates (SQLite, data/, the sessions) is its user's
       // alone, 0600 in 0700, whatever the umask it was started with
       yield* Effect.sync(() => process.umask(0o077))
-      const client = yield* Effect.acquireRelease(
-        Effect.try({
-          try: () => openDatabase(path, 0),
-          catch: (cause) => new DatabaseError({ cause }),
-        }),
-        (opened) => Effect.sync(() => opened.close())
-      )
-      const db = drizzle({ client })
-      const use = <A>(run: (db: NodeSQLiteDatabase) => A) =>
-        Effect.try({ try: () => run(db), catch: (cause) => new DatabaseError({ cause }) }).pipe(
-          Effect.retry({ while: (error) => busy(error.cause), schedule: whileBusy })
-        )
-      yield* use((db) => migrate(db, { migrationsFolder }))
-      return Database.of({ path, use })
+      return Database.of(yield* connect(path, migrationsFolder))
     })
   )
 }

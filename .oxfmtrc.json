@@ -13,7 +13,8 @@
     "**/tree.gen.ts",
     ".claude/**",
     "data/**",
-    "drizzle/**/snapshot.json"
+    "drizzle/**/snapshot.json",
+    "drizzle-auth/**/snapshot.json"
   ],
   "experimentalSortImports": {
     "groups": [

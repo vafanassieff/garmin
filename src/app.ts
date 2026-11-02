@@ -11,6 +11,7 @@ import { GarminSync } from './garmin/sync.ts'
 import { Routes } from './http.ts'
 import { Ingest } from './ingest.ts'
 import { Mcp } from './mcp.ts'
+import { OAuth } from './oauth/oauth.ts'
 import { Reader } from './reader.ts'
 import { Stats } from './stats.ts'
 import { Tools } from './tools.ts'
@@ -25,8 +26,8 @@ export const Garmin = GarminLogin.layer.pipe(
 )
 
 // SQLite (migrated), the ingest of data/, Garmin, the MCP's and the web pages' queries, the
-// password
-export const Services = Layer.mergeAll(Reader.layer, Tools.layer, Stats.layer).pipe(
+// password and the MCP's OAuth server
+export const Services = Layer.mergeAll(Reader.layer, Tools.layer, Stats.layer, OAuth.layer).pipe(
   Layer.provideMerge(Garmin),
   Layer.provideMerge(Ingest.layer),
   Layer.provideMerge(Database.layer),

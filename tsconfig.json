@@ -1,6 +1,13 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig.json",
-  "include": ["src/**/*", "test/**/*", "vite.config.ts", "vitest.config.ts", "drizzle.config.ts"],
+  "include": [
+    "src/**/*",
+    "test/**/*",
+    "vite.config.ts",
+    "vitest.config.ts",
+    "drizzle.config.ts",
+    "drizzle.auth.config.ts"
+  ],
   "exclude": ["node_modules", ".output", "data"],
   "compilerOptions": {
     "esModuleInterop": true,

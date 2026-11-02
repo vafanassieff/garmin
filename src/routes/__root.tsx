@@ -53,6 +53,7 @@ function Layout() {
           <Link to="/runs">Courses</Link>
           <Link to="/sleep">Sommeil</Link>
           <Link to="/garmin">Connexion Garmin</Link>
+          <Link to="/access">Accès MCP</Link>
           <Link to="/password">Mot de passe</Link>
         </nav>
         <form method="post" action="/auth/logout">

@@ -30,8 +30,8 @@ data/ ──(ingest, @garmin/fitsdk)──▶ SQLite ──▶ MCP at /mcp, web 
   rebuilt from them (`pnpm ingest --rebuild`). FIT files go through Garmin's official FIT SDK
   (`@garmin/fitsdk`); Garmin Connect's JSON gives what FIT files do not hold (names, load, gear,
   sleep, HRV, readiness, weight, the calendar).
-- **One password** guards everything: the MCP takes it as a bearer token, the web app's `/login`
-  sets a signed session cookie (30 days, `Secure` but on localhost). It is chosen in the web app on
+- **One password** guards everything: the MCP takes it as a bearer token (or an OAuth token, see
+  below), the web app's `/login` sets a signed session cookie (30 days, `Secure` but on localhost). It is chosen in the web app on
   the first visit (`/setup`, at least 12 characters), changed on `/password` (which logs every
   other browser and the MCP out), and only its scrypt hash is kept, in its own file
   (`PASSWORD_PATH`, 0600 in a 0700 directory, beside the Garmin session). Logging out logs every
@@ -41,6 +41,15 @@ data/ ──(ingest, @garmin/fitsdk)──▶ SQLite ──▶ MCP at /mcp, web 
   set by the reverse proxy), 60 a minute in all, 2 checks at a time; past that the login says to
   wait a minute and the MCP answers 429. A POST from another site is refused (CSRF), and every
   answer carries `frame-ancestors 'none'`, `nosniff`, HSTS and `no-store`.
+
+- **OAuth for the MCP** (`src/oauth/`): MCP clients such as Claude Code find the app's OAuth 2.1
+  server from the MCP's 401 (RFC 9728, then RFC 8414), register themselves (RFC 7591, public
+  clients), and send the browser to `/authorize`. There, logged in to the web app, the owner
+  allows them, and the client trades the code for tokens with PKCE (S256). Access tokens last an
+  hour, refresh tokens 30 days, rotated at each use. Clients and grants live in their own SQLite
+  file (`AUTH_DATABASE_PATH`, beside the password, never in the database the MCP's SQL reads),
+  through drizzle (`drizzle-auth/`), tokens as their SHA-256 only. `/access` lists the allowed
+  applications and revokes one; a new password revokes them all.
 
 ### `data/` layout
 
@@ -104,11 +113,13 @@ src/
   stats.ts         the web pages' queries (dashboard, runs, one activity, sleep)
   mcp.ts           MCP toolkit at /mcp
   auth.ts          the password: MCP bearer, web session cookie, the gate in front of everything
+  oauth/           the MCP's OAuth server: schema (drizzle-auth/), service, consent page, metadata
   password.ts      scrypt hash
   http.ts          /healthz
   app.ts           layers; jobs: the Garmin sync, the ingest every 5 minutes
   routes/          TanStack Start: / (stats), /runs, /activities/$id, /sleep, /garmin (connection),
-                   /setup, /login, /password, /auth/*, /mcp, /healthz
+                   /setup, /login, /password, /access, /auth/*, /authorize, /oauth/*,
+                   /.well-known/*, /mcp, /healthz
   components/      the pages' charts (plain SVG, no chart library), formats, segmented bars' parts
   server/          TanStack Start glue (runtime, nitro plugin, server functions)
 ```
@@ -130,6 +141,8 @@ src/
   HRV against Garmin's baseline, resting HR, breathing, SpO2, body battery, its stages), the
   period's averages against the period before, the stages and the schedule night by night (week
   by week over a year), HRV with its baseline band, sleep score, resting HR, body battery at wake.
+- `/access`: the applications allowed on the MCP through OAuth, when they last used it, a button
+  to revoke each; how to connect Claude Code.
 - `/garmin`: is the account connected, as whom, until when; log in (email, password, MFA code);
   sync now; switch account; log out; the last syncs and their errors; how the login works.
 
@@ -148,6 +161,8 @@ src/
 - `pnpm test`, `pnpm check` (format, lint, type-check)
 - `pnpm garmin login`: log the Garmin account in from a terminal (email, password, MFA code);
   `pnpm garmin status`, `pnpm garmin logout`, `pnpm garmin sync [--since 2026-01-01]`
+- `pnpm db:generate <name>`, `pnpm db:generate:auth <name>`: the next migration of `src/schema.ts`
+  (into `drizzle/`), of `src/oauth/schema.ts` (into `drizzle-auth/`)
 - `pnpm ingest [--rebuild]`: ingest `data/` now
 - `pnpm backfill <export.zip>`: import a Garmin "Export your data" zip
 
@@ -156,12 +171,14 @@ when the server's address goes through. Log in from the server's web app.
 
 ## MCP clients
 
-Streamable HTTP at `/mcp`, the app's password as bearer token. Claude Code:
+Streamable HTTP at `/mcp`. Claude Code, with OAuth (nothing to store but its own tokens):
 
 ```sh
-claude mcp add --transport http garmin https://garmin.example.com/mcp \
-  --header "Authorization: Bearer <password>"
+claude mcp add --transport http garmin https://garmin.example.com/mcp
+claude mcp login garmin   # or /mcp in a session: the browser opens /authorize, allow it
 ```
+
+Or the app's password as bearer token (`--header "Authorization: Bearer <password>"`).
 
 Over plain HTTP, `initialize` first: its `Mcp-Session-Id` response header goes on every next call.
 
@@ -169,7 +186,8 @@ Over plain HTTP, `initialize` first: its `Mcp-Session-Id` response header goes o
 
 One image, built from the `Dockerfile` (`.github/workflows/images.yml` pushes it to ghcr on every
 push to `main`). It runs as uid 1000, listens on :3000, and keeps two volumes: `/data` (raw files,
-SQLite) and `/session` (the Garmin session's tokens and the app's password hash, 0700). It holds
+SQLite) and `/session` (the Garmin session's tokens, the app's password hash and the OAuth
+database, 0700). It holds
 health data: keep it on a private network (a VPN such as Tailscale), behind a reverse proxy that
 terminates TLS.
 
