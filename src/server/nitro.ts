@@ -3,7 +3,7 @@ import { definePlugin } from 'nitro'
 
 import { Jobs } from '../app.ts'
 
-import { endpoints, runtime } from './runtime.ts'
+import { runtime } from './runtime.ts'
 
 type JobsFiber = ReturnType<typeof startJobs>
 
@@ -26,10 +26,5 @@ const stop = (fiber: JobsFiber | undefined) =>
 export default definePlugin((nitroApp) => {
   const jobs = Promise.resolve(globalThis.garminJobs).then(stop).then(startJobs)
   globalThis.garminJobs = jobs
-  nitroApp.hooks.hook('close', () =>
-    jobs
-      .then(stop)
-      .then(() => endpoints.dispose())
-      .then(() => runtime.dispose())
-  )
+  nitroApp.hooks.hook('close', () => jobs.then(stop).then(() => runtime.dispose()))
 })

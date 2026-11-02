@@ -1,11 +1,11 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 
-import { getAccess, revokeAccess } from '#src/server/functions.ts'
+import { api } from '#src/api/client.ts'
 
 // The applications allowed on the MCP (OAuth), each revocable, and how to connect one
 export const Route = createFileRoute('/access')({
-  loader: () => getAccess(),
+  loader: () => api.web.access(),
   head: () => ({ meta: [{ title: 'Garmin · accès MCP' }] }),
   component: Access,
 })
@@ -26,7 +26,8 @@ function Access() {
   const [pending, setPending] = useState<string | null>(null)
   const revoke = (id: string) => {
     setPending(id)
-    void revokeAccess({ data: { id } })
+    void api.web
+      .revokeAccess({ id })
       .then(() => router.invalidate())
       .finally(() => setPending(null))
   }

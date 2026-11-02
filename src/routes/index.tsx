@@ -1,14 +1,14 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 
+import { api } from '#src/api/client.ts'
 import { LineChart, shortDay, StackedColumns } from '#src/components/charts.tsx'
 import { dayLabel, fmt, hours, longDay, numericDay, pace, sport } from '#src/components/format.ts'
-import { getDashboard } from '#src/server/functions.ts'
 import type { Period, Week } from '#src/stats.ts'
 
 // The dashboard: the Garmin connection at a glance, the last 7 days, the last night, 12 weeks of
 // training, 28 days of recovery, the latest activities
 export const Route = createFileRoute('/')({
-  loader: () => getDashboard(),
+  loader: () => api.web.dashboard(),
   head: () => ({ meta: [{ title: 'Garmin · stats' }] }),
   component: Dashboard,
 })

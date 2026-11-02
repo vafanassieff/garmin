@@ -1,10 +1,10 @@
 import { createFileRoute, Link, notFound } from '@tanstack/react-router'
 import { useState } from 'react'
 
+import { api } from '#src/api/client.ts'
 import { LineChart, RouteMap, SegmentedBar } from '#src/components/charts.tsx'
 import { duration, fmt, hours, localTime, longDay, pace, sport } from '#src/components/format.ts'
 import { zoneParts } from '#src/components/parts.ts'
-import { getActivity } from '#src/server/functions.ts'
 
 // One activity: its numbers, its route, its time per HR zone, its pace, HR and altitude minute by
 // minute (one crosshair for the three), its kilometres and laps
@@ -12,7 +12,7 @@ export const Route = createFileRoute('/activities/$id')({
   loader: async ({ params }) => {
     const id = Number(params.id)
     if (!Number.isSafeInteger(id) || id <= 0) throw notFound()
-    const activity = await getActivity({ data: { id } })
+    const activity = await api.web.activity({ id })
     if (activity === null) throw notFound()
     return activity
   },

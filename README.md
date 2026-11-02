@@ -114,17 +114,18 @@ src/
   reader.ts        read-only SQL in a child process (read-only.ts), killed past 30s
   tools.ts         the typed MCP tools' queries
   stats.ts         the web pages' queries (dashboard, runs, one activity, sleep)
-  mcp.ts           MCP toolkit at /mcp
+  api/             the API with oRPC: one router over the services (garmin.ts: the public
+                   procedures, MCP tools by name; web.ts: the pages' calls), served as MCP (/mcp),
+                   OpenAPI (/api) and RPC (/rpc); client.ts: the pages' typed client
   auth.ts          the password: MCP bearer, web session cookie, the gate in front of everything
   oauth/           the MCP's OAuth server: schema (drizzle-auth/), service, consent page, metadata
   password.ts      scrypt hash
-  http.ts          /healthz
   app.ts           layers; jobs: the Garmin sync, the ingest every 5 minutes
   routes/          TanStack Start: / (stats), /runs, /activities/$id, /sleep, /garmin (connection),
                    /setup, /login, /password, /access, /auth/*, /authorize, /oauth/*,
                    /.well-known/*, /mcp, /healthz
   components/      the pages' charts (plain SVG, no chart library), formats, segmented bars' parts
-  server/          TanStack Start glue (runtime, nitro plugin, server functions)
+  server/          TanStack Start glue (the services' runtime, nitro plugin)
 ```
 
 ## Web app
@@ -148,6 +149,36 @@ src/
   to revoke each; how to connect Claude Code.
 - `/garmin`: is the account connected, as whom, until when; log in (email, password, MFA code);
   sync now; switch account; log out; the last syncs and their errors; how the login works.
+
+## API
+
+One oRPC router (`src/api/`) over the Effect services, behind the same gate as the rest: the web
+session, or a bearer token (the app's password or an OAuth access token).
+
+- `/mcp`: the public procedures as MCP tools (below), streamable HTTP, stateless.
+- `/api`: the same as OpenAPI (REST: `GET /api/activities`, `POST /api/workouts`,
+  `DELETE /api/workouts/{workout_id}`…), its document at `/api/openapi.json`.
+- `/rpc`: every procedure, the web pages' too, for oRPC's typed client:
+
+```ts
+import { createORPCClient } from '@orpc/client'
+import { RPCLink } from '@orpc/client/fetch'
+import type { RouterClient } from '@orpc/server'
+
+import type { Router } from './src/api/router.ts'
+
+const garmin: RouterClient<Router> = createORPCClient(
+  new RPCLink({
+    origin: 'https://garmin.example.com',
+    url: '/rpc',
+    headers: { authorization: `Bearer ${token}` },
+  })
+)
+await garmin.workouts.create({ name, sport: 'running', steps, schedule: ['2027-01-13'] })
+```
+
+The inputs are Effect schemas (validation and JSON Schema alike); a failure the caller can act on
+answers BAD_REQUEST with its message.
 
 ## MCP tools
 
@@ -193,7 +224,7 @@ claude mcp login garmin   # or /mcp in a session: the browser opens /authorize, 
 
 Or the app's password as bearer token (`--header "Authorization: Bearer <password>"`).
 
-Over plain HTTP, `initialize` first: its `Mcp-Session-Id` response header goes on every next call.
+Stateless: no `Mcp-Session-Id`, each request stands alone.
 
 ## Deploy
 

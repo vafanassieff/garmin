@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 
+import { api } from '#src/api/client.ts'
 import { dayLabel, duration, fmt, localTime, pace, sport } from '#src/components/format.ts'
-import { getActivities } from '#src/server/functions.ts'
 
 // Every activity, any sport, newest first, by year; one sport at a time when asked
 export const Route = createFileRoute('/activities/')({
@@ -10,7 +10,7 @@ export const Route = createFileRoute('/activities/')({
       ? { sport: search['sport'] }
       : {},
   loaderDeps: ({ search }) => ({ sport: search.sport ?? null }),
-  loader: ({ deps }) => getActivities({ data: { sport: deps.sport } }),
+  loader: ({ deps }) => api.web.activities({ sport: deps.sport }),
   head: () => ({ meta: [{ title: 'Garmin · activités' }] }),
   component: Activities,
 })

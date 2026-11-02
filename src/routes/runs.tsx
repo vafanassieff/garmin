@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 
+import { api } from '#src/api/client.ts'
+import { RUNS_SPANS } from '#src/api/periods.ts'
 import { LineChart, SegmentedBar, shortDay, StackedColumns } from '#src/components/charts.tsx'
 import { dayLabel, duration, fmt, hours, localTime, pace, sport } from '#src/components/format.ts'
 import { zoneParts } from '#src/components/parts.ts'
-import { getRuns, RUNS_SPANS } from '#src/server/functions.ts'
 import type { RunsSpan, RunWeek } from '#src/stats.ts'
 
 // Running: the last 4 weeks against the 4 before, 26 weeks of distance, each run's pace, the time
@@ -18,7 +19,7 @@ export const Route = createFileRoute('/runs')({
     return span === undefined || span === 26 ? {} : { span }
   },
   loaderDeps: ({ search }) => ({ span: search.span ?? 26 }),
-  loader: ({ deps }) => getRuns({ data: { span: deps.span } }),
+  loader: ({ deps }) => api.web.runs({ span: deps.span }),
   head: () => ({ meta: [{ title: 'Garmin · courses' }] }),
   component: Runs,
 })

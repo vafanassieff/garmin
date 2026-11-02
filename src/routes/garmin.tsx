@@ -1,20 +1,13 @@
 import { createFileRoute, useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 
-import {
-  garminLogin,
-  garminLogout,
-  garminMfa,
-  garminBackfill,
-  garminSyncNow,
-  getGarmin,
-  type LoginAnswer,
-} from '#src/server/functions.ts'
+import { api } from '#src/api/client.ts'
+import type { LoginAnswer } from '#src/api/web.ts'
 
 // The Garmin account: is it connected, log it in (email, password, then the MFA code), sync now,
 // the last syncs, and how it works
 export const Route = createFileRoute('/garmin')({
-  loader: () => getGarmin(),
+  loader: () => api.web.garmin(),
   head: () => ({ meta: [{ title: 'Garmin · connexion' }] }),
   component: GarminPage,
 })
@@ -83,7 +76,7 @@ function LoginForm({ onDone }: { onDone: () => void }) {
       <form
         className="stack"
         onSubmit={(event) =>
-          submit(event, (form) => garminMfa({ data: { id: step.id, code: field(form, 'code') } }))
+          submit(event, (form) => api.web.garminMfa({ id: step.id, code: field(form, 'code') }))
         }
       >
         <p className="note">
@@ -125,11 +118,9 @@ function LoginForm({ onDone }: { onDone: () => void }) {
       className="stack"
       onSubmit={(event) =>
         submit(event, (form) =>
-          garminLogin({
-            data: {
-              email: field(form, 'email'),
-              password: field(form, 'password'),
-            },
+          api.web.garminLogin({
+            email: field(form, 'email'),
+            password: field(form, 'password'),
           })
         )
       }
@@ -243,7 +234,8 @@ function GarminPage() {
                   disabled={busy || syncing}
                   onClick={() => {
                     setBusy(true)
-                    void garminSyncNow()
+                    void api.web
+                      .syncNow()
                       .then(() => new Promise((resolve) => setTimeout(resolve, 800)))
                       .then(refresh)
                       .finally(() => setBusy(false))
@@ -256,7 +248,8 @@ function GarminPage() {
                   disabled={busy || backfilling}
                   onClick={() => {
                     setBusy(true)
-                    void garminBackfill()
+                    void api.web
+                      .backfill()
                       .then(() => new Promise((resolve) => setTimeout(resolve, 800)))
                       .then(refresh)
                       .finally(() => setBusy(false))
@@ -275,7 +268,7 @@ function GarminPage() {
                         'Oublier la session Garmin ? Il faudra se reconnecter (avec le code MFA).'
                       )
                     ) {
-                      void garminLogout().then(refresh)
+                      void api.web.garminLogout().then(refresh)
                     }
                   }}
                 >

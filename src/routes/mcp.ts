@@ -1,8 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 
-import { endpoints } from '#src/server/runtime.ts'
+import { handleMcp } from '#src/api/server.ts'
 
-// The MCP (see mcp.ts), streamable HTTP: POST, GET and DELETE
+// The MCP (streamable HTTP): the public API's procedures as tools (see api/garmin.ts)
 export const Route = createFileRoute('/mcp')({
-  server: { handlers: { ANY: ({ request }) => endpoints.handler(request) } },
+  server: { handlers: { ANY: ({ request }) => handleMcp(request) } },
 })

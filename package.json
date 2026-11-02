@@ -26,6 +26,12 @@
   "dependencies": {
     "@effect/platform-node": "4.1.0",
     "@garmin/fitsdk": "21.213.0",
+    "@modelcontextprotocol/server": "2.4.0",
+    "@orpc/client": "2.0.0-beta.48",
+    "@orpc/json-schema": "2.0.0-beta.48",
+    "@orpc/mcp": "2.0.0-beta.48",
+    "@orpc/openapi": "2.0.0-beta.48",
+    "@orpc/server": "2.0.0-beta.48",
     "drizzle-orm": "1.0.0-rc.5-5935859",
     "effect": "4.1.0",
     "yauzl": "3.4.0"

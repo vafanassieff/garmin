@@ -9,9 +9,7 @@ import { GarminLogin } from './garmin/login.ts'
 import { GarminSession } from './garmin/session.ts'
 import { GarminSync } from './garmin/sync.ts'
 import { GarminWorkouts } from './garmin/workouts.ts'
-import { Routes } from './http.ts'
 import { Ingest } from './ingest.ts'
-import { Mcp } from './mcp.ts'
 import { OAuth } from './oauth/oauth.ts'
 import { Reader } from './reader.ts'
 import { Stats } from './stats.ts'
@@ -34,9 +32,6 @@ export const Services = Layer.mergeAll(Reader.layer, Tools.layer, Stats.layer, O
   Layer.provideMerge(Database.layer),
   Layer.provideMerge(Layer.merge(NodeServices.layer, Auth.layer))
 )
-
-// The Effect HTTP routes (MCP, health), mounted under the web app (see routes/)
-export const Endpoints = Layer.mergeAll(Routes, Mcp)
 
 // The background jobs: the Garmin sync every 3 hours (it ingests what it wrote), and the ingest of
 // data/ every 5 minutes for what lands there otherwise (an export's backfill)

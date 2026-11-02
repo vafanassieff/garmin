@@ -183,6 +183,38 @@ describe('gate', () => {
     expect(throttled?.headers.get('retry-after')).toBe('60')
   })
 
+  it('opens the API to a bearer token, or else the web session', async () => {
+    expect(
+      await status('/rpc/web/dashboard', { authorization: 'Bearer demo' }, 'POST')
+    ).toBeUndefined()
+    expect(await status('/api/activities', { authorization: 'Bearer demo' })).toBeUndefined()
+    expect(await status('/api/openapi.json', { authorization: 'Bearer nope' })).toBe(401)
+    expect(await status('/RPC/sql', { authorization: 'Bearer many' }, 'POST')).toBe(429)
+    // Without one: the session, from this site only
+    expect(await status('/rpc/web/dashboard', {}, 'POST')).toBe(401)
+    expect(
+      await status(
+        '/rpc/web/dashboard',
+        { cookie: 'garmin_web=ok', 'sec-fetch-site': 'same-origin' },
+        'POST'
+      )
+    ).toBeUndefined()
+    expect(
+      await status(
+        '/rpc/web/dashboard',
+        { cookie: 'garmin_web=ok', 'sec-fetch-site': 'cross-site' },
+        'POST'
+      )
+    ).toBe(403)
+    // Not before a password exists
+    chosen = false
+    try {
+      expect(await status('/rpc/sql', { authorization: 'Bearer demo' }, 'POST')).toBe(401)
+    } finally {
+      chosen = true
+    }
+  })
+
   it('opens the OAuth endpoints, not the consent', async () => {
     for (const path of [
       '/.well-known/oauth-protected-resource/mcp',

@@ -23,6 +23,7 @@ import { Route as SleepRouteImport } from './routes/sleep.tsx'
 import { Route as DotwellKnownSplatRouteImport } from './routes/[.]well-known.$.ts'
 import { Route as ActivitiesIndexRouteImport } from './routes/activities.index.tsx'
 import { Route as ActivitiesIdRouteImport } from './routes/activities.$id.tsx'
+import { Route as ApiSplatRouteImport } from './routes/api.$.ts'
 import { Route as AuthLoginRouteImport } from './routes/auth/login.ts'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout.ts'
 import { Route as AuthPasswordRouteImport } from './routes/auth/password.ts'
@@ -31,6 +32,7 @@ import { Route as OauthAuthorizeRouteImport } from './routes/oauth/authorize.ts'
 import { Route as OauthRegisterRouteImport } from './routes/oauth/register.ts'
 import { Route as OauthRevokeRouteImport } from './routes/oauth/revoke.ts'
 import { Route as OauthTokenRouteImport } from './routes/oauth/token.ts'
+import { Route as RpcSplatRouteImport } from './routes/rpc.$.ts'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -102,6 +104,11 @@ const ActivitiesIdRoute = ActivitiesIdRouteImport.update({
   path: '/activities/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthLoginRoute = AuthLoginRouteImport.update({
   id: '/auth/login',
   path: '/auth/login',
@@ -142,6 +149,11 @@ const OauthTokenRoute = OauthTokenRouteImport.update({
   path: '/oauth/token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RpcSplatRoute = RpcSplatRouteImport.update({
+  id: '/rpc/$',
+  path: '/rpc/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -157,6 +169,7 @@ export interface FileRoutesByFullPath {
   '/sleep': typeof SleepRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/activities/$id': typeof ActivitiesIdRoute
+  '/api/$': typeof ApiSplatRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
@@ -165,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/oauth/register': typeof OauthRegisterRoute
   '/oauth/revoke': typeof OauthRevokeRoute
   '/oauth/token': typeof OauthTokenRoute
+  '/rpc/$': typeof RpcSplatRoute
   '/activities/': typeof ActivitiesIndexRoute
 }
 export interface FileRoutesByTo {
@@ -181,6 +195,7 @@ export interface FileRoutesByTo {
   '/sleep': typeof SleepRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/activities/$id': typeof ActivitiesIdRoute
+  '/api/$': typeof ApiSplatRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
@@ -189,6 +204,7 @@ export interface FileRoutesByTo {
   '/oauth/register': typeof OauthRegisterRoute
   '/oauth/revoke': typeof OauthRevokeRoute
   '/oauth/token': typeof OauthTokenRoute
+  '/rpc/$': typeof RpcSplatRoute
   '/activities': typeof ActivitiesIndexRoute
 }
 export interface FileRoutesById {
@@ -206,6 +222,7 @@ export interface FileRoutesById {
   '/sleep': typeof SleepRoute
   '/.well-known/$': typeof DotwellKnownSplatRoute
   '/activities/$id': typeof ActivitiesIdRoute
+  '/api/$': typeof ApiSplatRoute
   '/auth/login': typeof AuthLoginRoute
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
@@ -214,6 +231,7 @@ export interface FileRoutesById {
   '/oauth/register': typeof OauthRegisterRoute
   '/oauth/revoke': typeof OauthRevokeRoute
   '/oauth/token': typeof OauthTokenRoute
+  '/rpc/$': typeof RpcSplatRoute
   '/activities/': typeof ActivitiesIndexRoute
 }
 export interface FileRouteTypes {
@@ -232,6 +250,7 @@ export interface FileRouteTypes {
     | '/sleep'
     | '/.well-known/$'
     | '/activities/$id'
+    | '/api/$'
     | '/auth/login'
     | '/auth/logout'
     | '/auth/password'
@@ -240,6 +259,7 @@ export interface FileRouteTypes {
     | '/oauth/register'
     | '/oauth/revoke'
     | '/oauth/token'
+    | '/rpc/$'
     | '/activities/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -256,6 +276,7 @@ export interface FileRouteTypes {
     | '/sleep'
     | '/.well-known/$'
     | '/activities/$id'
+    | '/api/$'
     | '/auth/login'
     | '/auth/logout'
     | '/auth/password'
@@ -264,6 +285,7 @@ export interface FileRouteTypes {
     | '/oauth/register'
     | '/oauth/revoke'
     | '/oauth/token'
+    | '/rpc/$'
     | '/activities'
   id:
     | '__root__'
@@ -280,6 +302,7 @@ export interface FileRouteTypes {
     | '/sleep'
     | '/.well-known/$'
     | '/activities/$id'
+    | '/api/$'
     | '/auth/login'
     | '/auth/logout'
     | '/auth/password'
@@ -288,6 +311,7 @@ export interface FileRouteTypes {
     | '/oauth/register'
     | '/oauth/revoke'
     | '/oauth/token'
+    | '/rpc/$'
     | '/activities/'
   fileRoutesById: FileRoutesById
 }
@@ -305,6 +329,7 @@ export interface RootRouteChildren {
   SleepRoute: typeof SleepRoute
   DotwellKnownSplatRoute: typeof DotwellKnownSplatRoute
   ActivitiesIdRoute: typeof ActivitiesIdRoute
+  ApiSplatRoute: typeof ApiSplatRoute
   AuthLoginRoute: typeof AuthLoginRoute
   AuthLogoutRoute: typeof AuthLogoutRoute
   AuthPasswordRoute: typeof AuthPasswordRoute
@@ -313,6 +338,7 @@ export interface RootRouteChildren {
   OauthRegisterRoute: typeof OauthRegisterRoute
   OauthRevokeRoute: typeof OauthRevokeRoute
   OauthTokenRoute: typeof OauthTokenRoute
+  RpcSplatRoute: typeof RpcSplatRoute
   ActivitiesIndexRoute: typeof ActivitiesIndexRoute
 }
 
@@ -416,6 +442,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ActivitiesIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth/login': {
       id: '/auth/login'
       path: '/auth/login'
@@ -472,6 +505,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OauthTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/rpc/$': {
+      id: '/rpc/$'
+      path: '/rpc/$'
+      fullPath: '/rpc/$'
+      preLoaderRoute: typeof RpcSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -489,6 +529,7 @@ const rootRouteChildren: RootRouteChildren = {
   SleepRoute: SleepRoute,
   DotwellKnownSplatRoute: DotwellKnownSplatRoute,
   ActivitiesIdRoute: ActivitiesIdRoute,
+  ApiSplatRoute: ApiSplatRoute,
   AuthLoginRoute: AuthLoginRoute,
   AuthLogoutRoute: AuthLogoutRoute,
   AuthPasswordRoute: AuthPasswordRoute,
@@ -497,6 +538,7 @@ const rootRouteChildren: RootRouteChildren = {
   OauthRegisterRoute: OauthRegisterRoute,
   OauthRevokeRoute: OauthRevokeRoute,
   OauthTokenRoute: OauthTokenRoute,
+  RpcSplatRoute: RpcSplatRoute,
   ActivitiesIndexRoute: ActivitiesIndexRoute,
 }
 export const routeTree = rootRouteImport

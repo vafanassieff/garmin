@@ -6,8 +6,8 @@ import { Effect, Fiber, Layer } from 'effect'
 
 import { rows, sql, testConfig } from '../test/fixtures.ts'
 
+import { capRows } from './api/garmin.ts'
 import { Database } from './db.ts'
-import { capRows } from './mcp.ts'
 import { Reader } from './reader.ts'
 
 const withTimeout = (reader: typeof Reader.layer) =>

@@ -1,5 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 
+import { api } from '#src/api/client.ts'
+import { SLEEP_PERIODS } from '#src/api/periods.ts'
 import {
   LineChart,
   RangeColumns,
@@ -9,7 +11,6 @@ import {
 } from '#src/components/charts.tsx'
 import { clock, dayLabel, fmt, hours, longDay } from '#src/components/format.ts'
 import { STAGES, stageParts } from '#src/components/parts.ts'
-import { getSleep, SLEEP_PERIODS } from '#src/server/functions.ts'
 import type { SleepAverages, SleepNight } from '#src/stats.ts'
 
 // Sleep: the last night in detail (its stages, its HRV against Garmin's baseline), the period's
@@ -27,7 +28,7 @@ export const Route = createFileRoute('/sleep')({
     return days === undefined || days === 30 ? {} : { days }
   },
   loaderDeps: ({ search }) => ({ days: search.days ?? 30 }),
-  loader: ({ deps }) => getSleep({ data: { days: deps.days } }),
+  loader: ({ deps }) => api.web.sleep({ days: deps.days }),
   head: () => ({ meta: [{ title: 'Garmin · sommeil' }] }),
   component: Sleep,
 })

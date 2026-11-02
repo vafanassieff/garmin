@@ -352,7 +352,7 @@ const crossSite = (request: Request, url: URL) => {
 
 // The health check is open; the MCP takes an OAuth access token or the password as a bearer
 // token, its 401 pointing to the OAuth metadata; the OAuth endpoints are open once a password
-// exists; a POST (or any other method that changes something) from another site is refused; the
+// exists; the API (/rpc, /api) takes a bearer token too, or else the web session; a POST (or any other method that changes something) from another site is refused; the
 // login page, its form and the built assets are open; everything else (pages, /authorize, server
 // functions) needs the web session, a page redirecting to the login. Undefined lets the request
 // through.
@@ -394,6 +394,18 @@ export const gate = async (
   }
   if (OAUTH_OPEN.has(path)) {
     return (await hasPassword()) ? undefined : text('No password yet: choose it at /setup\n', 401)
+  }
+  // The API (RPC, OpenAPI) with a bearer token, as the MCP: a script's. Without one, the web
+  // session below (a page's calls). A bearer is no CSRF: another site cannot send one.
+  const bearer = /^Bearer (.+)$/iu.exec(request.headers.get('authorization') ?? '')?.[1]
+  if (/^\/(?:rpc|api)\//iu.test(path) && bearer !== undefined) {
+    const verdict = (await hasPassword())
+      ? await verifyBearer(bearer, clientOf(request), `${publicOrigin(request)}/mcp`)
+      : 'wrong'
+    if (verdict === 'ok') return undefined
+    return verdict === 'throttled'
+      ? text('Too many wrong passwords: try again in a minute\n', 429, { 'retry-after': '60' })
+      : text('Unauthorized\n', 401, { 'www-authenticate': 'Bearer error="invalid_token"' })
   }
   if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && crossSite(request, url)) {
     return text('Forbidden: a request from another site\n', 403)

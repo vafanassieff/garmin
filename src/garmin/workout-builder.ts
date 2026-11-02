@@ -11,51 +11,51 @@ import catalog from './exercises.json' with { type: 'json' }
 
 // --- Inputs
 
-const Pace = Schema.Union([Schema.Number, Schema.String]).annotate({
+const Pace = Schema.Union([Schema.Finite, Schema.String]).annotate({
   description: `Seconds per km (365) or min'sec per km ("6'05/km", "6:05")`,
 })
 
-const Duration = Schema.Union([Schema.Number, Schema.String]).annotate({
+const Duration = Schema.Union([Schema.Finite, Schema.String]).annotate({
   description: `Seconds (180) or "3:00", "1:05:00", "45'", "4'30\\"", "90s"`,
 })
 
 const StepKind = Schema.Literals(['warmup', 'interval', 'recovery', 'cooldown', 'rest'])
 
 const stepFields = {
-  kind: Schema.optional(StepKind).annotate({ description: "The step's type; default interval" }),
-  duration: Schema.optional(Duration),
-  distance_m: Schema.optional(Schema.Number.annotate({ description: 'Metres' })),
-  reps: Schema.optional(Schema.Number.annotate({ description: 'Repetitions (strength)' })),
-  lap_button: Schema.optional(
+  kind: Schema.optionalKey(StepKind).annotate({ description: "The step's type; default interval" }),
+  duration: Schema.optionalKey(Duration),
+  distance_m: Schema.optionalKey(Schema.Finite.annotate({ description: 'Metres' })),
+  reps: Schema.optionalKey(Schema.Int.annotate({ description: 'Repetitions (strength)' })),
+  lap_button: Schema.optionalKey(
     Schema.Boolean.annotate({ description: 'Ends when the lap button is pressed' })
   ),
-  pace: Schema.optional(
+  pace: Schema.optionalKey(
     Schema.Struct({ slow: Pace, fast: Pace }).annotate({
       description: 'Pace target, e.g. { slow: "6\'10/km", fast: "6\'00/km" } (running)',
     })
   ),
-  hr: Schema.optional(
-    Schema.Struct({ low: Schema.Number, high: Schema.Number }).annotate({
+  hr: Schema.optionalKey(
+    Schema.Struct({ low: Schema.Int, high: Schema.Int }).annotate({
       description: 'Heart-rate target in bpm, e.g. { low: 120, high: 150 }',
     })
   ),
-  exercise: Schema.optional(
+  exercise: Schema.optionalKey(
     Schema.String.annotate({
       description:
         'Strength: the exercise\'s display name in Garmin\'s catalog, e.g. "Dead Bug" (find_exercises)',
     })
   ),
-  category: Schema.optional(
+  category: Schema.optionalKey(
     Schema.String.annotate({
       description: 'Strength, instead of exercise: Garmin\'s category key, e.g. "PLANK"',
     })
   ),
-  exercise_name: Schema.optional(
+  exercise_name: Schema.optionalKey(
     Schema.String.annotate({
       description: 'Strength, with category: Garmin\'s exercise key, e.g. "SIDE_PLANK"',
     })
   ),
-  note: Schema.optional(Schema.String.annotate({ description: 'Shown on the watch' })),
+  note: Schema.optionalKey(Schema.String.annotate({ description: 'Shown on the watch' })),
 }
 
 export const StepSchema = Schema.Struct(stepFields).annotate({
@@ -66,10 +66,10 @@ export type StepInput = typeof StepSchema.Type
 
 export const TopStepSchema = Schema.Struct({
   ...stepFields,
-  repeat: Schema.optional(
-    Schema.Number.annotate({ description: 'A repeat group: how many times its steps run' })
+  repeat: Schema.optionalKey(
+    Schema.Int.annotate({ description: 'A repeat group: how many times its steps run' })
   ),
-  steps: Schema.optional(
+  steps: Schema.optionalKey(
     Schema.Array(StepSchema).annotate({ description: "The repeat group's steps (with repeat)" })
   ),
 }).annotate({
@@ -86,10 +86,10 @@ export const WorkoutSchema = Schema.Struct({
       'The workout\'s name as the watch shows it, e.g. "Plan - tue 03/11 - Easy 40\'" (one workout per date for runs)',
   }),
   sport: Sport,
-  description: Schema.optional(Schema.String),
+  description: Schema.optionalKey(Schema.String),
   steps: Schema.Array(TopStepSchema),
-  estimated_minutes: Schema.optional(
-    Schema.Number.annotate({ description: 'Shown by Garmin; computed from the steps by default' })
+  estimated_minutes: Schema.optionalKey(
+    Schema.Finite.annotate({ description: 'Shown by Garmin; computed from the steps by default' })
   ),
 })
 export type WorkoutInput = typeof WorkoutSchema.Type
