@@ -76,7 +76,7 @@ export const runStatement = (db: DatabaseSync, statement: string, maxRows: numbe
     let bytes = 0
     for (const row of prepared.iterate()) {
       if (total < maxRows) {
-        bytes += JSON.stringify(row).length
+        bytes += Buffer.byteLength(JSON.stringify(row))
         if (bytes > MAX_BYTES) {
           return { error: 'The result is over 16 MB: select fewer rows or columns.' }
         }

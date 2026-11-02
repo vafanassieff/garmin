@@ -1,6 +1,7 @@
-import { Context, Effect, Layer, Schedule, Schema, Stream } from 'effect'
+import { Context, Effect, Layer, Schedule, Schema } from 'effect'
 import { HttpClient, HttpClientRequest, type HttpClientResponse } from 'effect/http'
 
+import { body, text } from './body.ts'
 import { GarminError, NotLoggedIn, RateLimited } from './errors.ts'
 import { type Account, GarminSession, LOGIN_HINT } from './session.ts'
 import { nativeHeaders } from './sso.ts'
@@ -10,10 +11,6 @@ import { nativeHeaders } from './sso.ts'
 // never writes to Garmin.
 
 const CONNECT_API = 'https://connectapi.garmin.com'
-
-// An answer's body at most: a page of activities or a day's file is well under a MB, a FIT zip a
-// few (a bigger one would only fill the memory)
-const MAX_BODY = 64 * 1024 * 1024
 
 type Params = Readonly<Record<string, string | number>>
 
@@ -94,10 +91,7 @@ export class GarminApi extends Context.Service<
             })
           }
           if (response.status >= 400) {
-            const detail = yield* body(path, response).pipe(
-              Effect.map((bytes) => new TextDecoder().decode(bytes)),
-              Effect.orElseSucceed(() => '')
-            )
+            const detail = yield* text(path, response).pipe(Effect.orElseSucceed(() => ''))
             return yield* new GarminError({
               message: `${path}: HTTP ${response.status}${detail.length > 0 && detail.length < 300 ? ` ${detail}` : ''}`,
               status: response.status,
@@ -106,38 +100,17 @@ export class GarminApi extends Context.Service<
           return response
         })
 
-      // The body, refused past MAX_BODY as it arrives
-      const body = (path: string, response: HttpClientResponse.HttpClientResponse) =>
-        Stream.runFoldEffect(
-          response.stream,
-          () => ({ chunks: [] as Array<Uint8Array>, size: 0 }),
-          (read, chunk) => {
-            read.size += chunk.length
-            if (read.size > MAX_BODY) {
-              return Effect.fail(new GarminError({ message: `${path}: over ${MAX_BODY} bytes` }))
-            }
-            read.chunks.push(chunk)
-            return Effect.succeed(read)
-          }
-        ).pipe(Effect.map(({ chunks }) => new Uint8Array(Buffer.concat(chunks))))
-
       const json = (path: string, params: Params = {}) =>
         request(path, params, 'application/json').pipe(
           Effect.flatMap((response) =>
             response.status === 204
               ? Effect.succeed(null)
-              : body(path, response).pipe(
-                  Effect.map((bytes) => new TextDecoder().decode(bytes)),
-                  Effect.flatMap((text) =>
+              : text(path, response).pipe(
+                  Effect.flatMap((content) =>
                     Effect.try({
-                      try: (): unknown => (text.trim() === '' ? null : JSON.parse(text)),
+                      try: (): unknown => (content.trim() === '' ? null : JSON.parse(content)),
                       catch: () => new GarminError({ message: `${path}: not JSON` }),
                     })
-                  ),
-                  Effect.mapError((error) =>
-                    error._tag === 'GarminError'
-                      ? error
-                      : new GarminError({ message: `${path}: ${error.message}` })
                   )
                 )
           ),
@@ -147,13 +120,6 @@ export class GarminApi extends Context.Service<
       const bytes = (path: string) =>
         request(path, {}, '*/*').pipe(
           Effect.flatMap((response) => body(path, response)),
-          Effect.mapError((error) =>
-            error._tag === 'NotLoggedIn' ||
-            error._tag === 'RateLimited' ||
-            error._tag === 'GarminError'
-              ? error
-              : new GarminError({ message: `${path}: ${error.message}` })
-          ),
           Effect.withSpan('GarminApi.bytes', { attributes: { path } })
         )
 

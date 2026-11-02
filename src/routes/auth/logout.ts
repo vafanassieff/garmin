@@ -8,7 +8,8 @@ export const Route = createFileRoute('/auth/logout')({
   server: {
     handlers: {
       POST: async ({ request }) => {
-        await logout()
+        // Failing, this browser is logged out all the same
+        await logout().catch((error: unknown) => console.error('logout', error))
         return new Response(null, {
           status: 303,
           headers: {

@@ -1,6 +1,7 @@
 import { Duration, Effect, Random, Ref, Schema } from 'effect'
 import { type Cookies, HttpClient, HttpClientRequest, type HttpClientResponse } from 'effect/http'
 
+import * as Body from './body.ts'
 import { GarminError, LoginRefused, NotLoggedIn, RateLimited } from './errors.ts'
 
 // Garmin's SSO, as Garmin Connect's mobile app does it (garminconnect 0.3.7's, in Python, was the
@@ -153,7 +154,7 @@ const ssoJson = (what: string, response: HttpClientResponse.HttpClientResponse) 
         status: 403,
       })
     }
-    const json = yield* response.json.pipe(
+    const json = yield* Body.json(what, response).pipe(
       Effect.mapError(
         () =>
           new GarminError({
@@ -250,7 +251,7 @@ const tokensOf = (
   clientId: string,
   previousRefresh: string | null
 ) =>
-  response.json.pipe(
+  Body.json('token answer', response).pipe(
     Effect.flatMap(Schema.decodeUnknownEffect(TokenAnswer)),
     Effect.map((answer): Tokens => ({
       di_token: answer.access_token,
