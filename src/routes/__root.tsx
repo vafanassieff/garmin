@@ -47,6 +47,9 @@ function Layout() {
           <Link to="/" activeOptions={{ exact: true }}>
             Stats
           </Link>
+          <Link to="/activities" activeOptions={{ exact: true }}>
+            Activités
+          </Link>
           <Link to="/runs">Courses</Link>
           <Link to="/sleep">Sommeil</Link>
           <Link to="/garmin">Connexion Garmin</Link>

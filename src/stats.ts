@@ -115,20 +115,37 @@ export interface Predictions {
   readonly race_marathon_s: number | null
 }
 
+// The runs page's span: 26 weeks, a year (52), or the whole history
+export type RunsSpan = 26 | 52 | 'all'
+
 export interface RunsView {
   readonly today: string
+  readonly span: RunsSpan
   readonly year: RunPeriod
   readonly last28: RunPeriod
   readonly previous28: RunPeriod
   readonly longest: RunRow | null
   readonly vo2max: { readonly day: string; readonly value: number } | null
   readonly predictions: Predictions | null
-  // 26 ISO weeks, oldest first, the empty ones included
+  // The span's ISO weeks, oldest first, the empty ones included
   readonly weeks: ReadonlyArray<RunWeek>
   // The last 28 days' time per HR zone
   readonly zones: Zones
-  // The last 26 weeks' runs, newest first
+  // The span's runs, newest first
   readonly runs: ReadonlyArray<RunRow>
+}
+
+// Every activity, any sport (routes/activities.index.tsx)
+export interface ActivityRow extends RunRow {
+  readonly on_foot: boolean
+  readonly speed_kmh: number | null
+}
+
+export interface ActivitiesView {
+  // Newest first, of `sport` when one is asked
+  readonly activities: ReadonlyArray<ActivityRow>
+  // Every sport, and how many activities of each, the most frequent first
+  readonly sports: ReadonlyArray<{ readonly sport: string; readonly count: number }>
 }
 
 // One activity (routes/activities.$id.tsx)
@@ -235,8 +252,13 @@ export interface SleepAverages {
   readonly resting_hr: number | null
 }
 
+// The sleep page's span: nights, or the whole history
+export type SleepSpan = 30 | 90 | 365 | 'all'
+
 export interface SleepView {
   readonly today: string
+  readonly span: SleepSpan
+  // How many nights that is
   readonly days: number
   readonly last: SleepNight | null
   // Every day of the period, oldest first (a night without data has nulls)
@@ -263,6 +285,9 @@ const addDays = (day: string, days: number) =>
   new Date(Date.parse(`${day}T00:00:00Z`) + days * 86_400_000).toISOString().slice(0, 10)
 
 // The Monday of the ISO week of `day`
+const daysFrom = (from: string, to: string) =>
+  Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+const min = (a: string, b: string) => (a < b ? a : b)
 const mondayOf = (day: string) =>
   addDays(day, -((new Date(`${day}T00:00:00Z`).getUTCDay() + 6) % 7))
 
@@ -370,9 +395,10 @@ export class Stats extends Context.Service<
   Stats,
   {
     readonly dashboard: Effect.Effect<Dashboard, DatabaseError>
-    readonly runs: Effect.Effect<RunsView, DatabaseError>
+    readonly runs: (span: RunsSpan) => Effect.Effect<RunsView, DatabaseError>
+    readonly activities: (sport: string | null) => Effect.Effect<ActivitiesView, DatabaseError>
     readonly activity: (id: number) => Effect.Effect<ActivityView | null, DatabaseError>
-    readonly sleep: (days: number) => Effect.Effect<SleepView, DatabaseError>
+    readonly sleep: (span: SleepSpan) => Effect.Effect<SleepView, DatabaseError>
   }
 >()('garmin/Stats') {
   static readonly layer = Layer.effect(
@@ -483,9 +509,18 @@ export class Stats extends Context.Service<
         ${TIME} AS moving_s, ${PACE} AS pace_s,
         avg_hr, round(ascent_m) AS ascent_m, round(training_load) AS training_load, aerobic_te`
 
-      const runs = Effect.gen(function* () {
+      const runs = Effect.fn('Stats.runs')(function* (span: RunsSpan) {
         const today = yield* parisToday
-        const firstWeek = addDays(mondayOf(today), -7 * 25)
+        const lastWeek = mondayOf(today)
+        const [first] = yield* all<{ day: string | null }>(
+          sql.raw(`SELECT min(day) AS day FROM activities WHERE ${RUN}`)
+        )
+        // The whole history: from the first run's week (at least the last 26)
+        const firstWeek =
+          span === 'all'
+            ? min(mondayOf(first?.day ?? today), addDays(lastWeek, -7 * 25))
+            : addDays(lastWeek, -7 * (span - 1))
+        const weekCount = Math.round(daysFrom(firstWeek, lastWeek) / 7) + 1
         const year = yield* runPeriod(`${today.slice(0, 4)}-01-01`, today)
         const last28 = yield* runPeriod(addDays(today, -27), today)
         const previous28 = yield* runPeriod(addDays(today, -55), addDays(today, -28))
@@ -503,7 +538,7 @@ export class Stats extends Context.Service<
             round(coalesce(sum(distance_m), 0) / 1000, 1) AS distance_km
           FROM activities WHERE ${sql.raw(RUN)} AND day >= ${firstWeek} GROUP BY 1`)
         const byWeek = new Map(weekRows.map((row) => [row.week, row]))
-        const weeks = Array.from({ length: 26 }, (_, index) => {
+        const weeks = Array.from({ length: weekCount }, (_, index) => {
           const week = addDays(firstWeek, index * 7)
           return byWeek.get(week) ?? { week, runs: 0, distance_km: 0 }
         })
@@ -517,6 +552,7 @@ export class Stats extends Context.Service<
           WHERE ${sql.raw(RUN)} AND day >= ${firstWeek} ORDER BY start_local DESC`)
         return {
           today,
+          span,
           year,
           last28,
           previous28,
@@ -620,12 +656,20 @@ export class Stats extends Context.Service<
         body_battery_wake: null,
       })
 
-      const sleep = Effect.fn('Stats.sleep')(function* (days: number) {
-        const span = Math.max(7, Math.min(Math.trunc(days), 366))
+      const sleep = Effect.fn('Stats.sleep')(function* (asked: SleepSpan) {
         const today = yield* parisToday
+        const [first] = yield* all<{ day: string | null }>(sql`
+          SELECT min(day) AS day FROM daily WHERE sleep_s IS NOT NULL`)
+        // The whole history: from the first night measured (ten years at most)
+        const span =
+          asked === 'all'
+            ? Math.max(30, Math.min(daysFrom(first?.day ?? today, today) + 1, 3660))
+            : asked
         const from = addDays(today, -(span - 1))
         const rows = yield* nightsBetween(from, today)
-        const previous = yield* nightsBetween(addDays(from, -span), addDays(from, -1))
+        // Nothing before the whole history
+        const previous =
+          asked === 'all' ? [] : yield* nightsBetween(addDays(from, -span), addDays(from, -1))
         const byDay = new Map(rows.map((night) => [night.day, night]))
         const nights = Array.from({ length: span }, (_, index) => {
           const day = addDays(from, index)
@@ -635,6 +679,7 @@ export class Stats extends Context.Service<
           SELECT ${NIGHT} FROM daily WHERE sleep_s IS NOT NULL ORDER BY day DESC LIMIT 1`)
         return {
           today,
+          span: asked,
           days: span,
           last: last === undefined ? null : withClock(last),
           nights,
@@ -643,7 +688,21 @@ export class Stats extends Context.Service<
         } satisfies SleepView
       })
 
-      return Stats.of({ dashboard, runs, activity, sleep })
+      const activities = Effect.fn('Stats.activities')(function* (sport: string | null) {
+        const rows = yield* all<Omit<ActivityRow, 'on_foot'> & { on_foot: number }>(sql`
+          SELECT ${sql.raw(RUN_ROW)}, ${sql.raw(SPEED)} AS speed_kmh,
+            ${sql.raw(ON_FOOT)} AS on_foot
+          FROM activities WHERE ${sport} IS NULL OR sport = ${sport}
+          ORDER BY start_local DESC`)
+        const sports = yield* all<{ sport: string; count: number }>(sql`
+          SELECT sport, count(*) AS count FROM activities GROUP BY sport ORDER BY 2 DESC, 1`)
+        return {
+          activities: rows.map((row) => Object.assign(row, { on_foot: row.on_foot === 1 })),
+          sports,
+        } satisfies ActivitiesView
+      })
+
+      return Stats.of({ dashboard, runs, activities, activity, sleep })
     })
   )
 }

@@ -20,7 +20,10 @@ type Period = (typeof SLEEP_PERIODS)[number]
 export const Route = createFileRoute('/sleep')({
   // ?days= is optional: 30 by default
   validateSearch: (search: Record<string, unknown>): { days?: Period } => {
-    const days = SLEEP_PERIODS.find((period) => period === Number(search['days']))
+    const asked = search['days']
+    const days = SLEEP_PERIODS.find(
+      (period) => period === asked || (typeof period === 'number' && period === Number(asked))
+    )
     return days === undefined || days === 30 ? {} : { days }
   },
   loaderDeps: ({ search }) => ({ days: search.days ?? 30 }),
@@ -29,11 +32,24 @@ export const Route = createFileRoute('/sleep')({
   component: Sleep,
 })
 
-const PERIOD_LABEL: Record<Period, string> = { 30: '30 nuits', 90: '90 nuits', 365: '1 an' }
-const BEFORE_LABEL: Record<Period, string> = {
+const PERIOD_LABEL: Record<Period, string> = {
+  30: '30 nuits',
+  90: '90 nuits',
+  365: '1 an',
+  all: 'Tout',
+}
+const AVERAGE_LABEL: Record<Period, string> = {
+  30: '30 nuits',
+  90: '90 nuits',
+  365: '1 an',
+  all: 'tout l’historique',
+}
+// Nothing before the whole history: no comparison
+const BEFORE_LABEL: Record<Period, string | null> = {
   30: 'aux 30 nuits d’avant',
   90: 'aux 90 nuits d’avant',
   365: 'à l’année d’avant',
+  all: null,
 }
 
 // Past 120 nights, a column per night is too thin: a column per week, its nights' average
@@ -313,8 +329,12 @@ function Sleep() {
       </section>
 
       <section>
-        <h2>Moyennes, {PERIOD_LABEL[days]}</h2>
-        <p className="sub">Comparées {BEFORE_LABEL[days]}</p>
+        <h2>Moyennes, {AVERAGE_LABEL[days]}</h2>
+        {BEFORE_LABEL[days] === null ? (
+          <p className="sub">Depuis la première nuit mesurée</p>
+        ) : (
+          <p className="sub">Comparées {BEFORE_LABEL[days]}</p>
+        )}
         <Averages now={view.averages} before={view.previous} />
       </section>
 

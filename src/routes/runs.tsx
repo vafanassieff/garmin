@@ -3,13 +3,22 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { LineChart, SegmentedBar, shortDay, StackedColumns } from '#src/components/charts.tsx'
 import { dayLabel, duration, fmt, hours, localTime, pace, sport } from '#src/components/format.ts'
 import { zoneParts } from '#src/components/parts.ts'
-import { getRuns } from '#src/server/functions.ts'
-import type { RunWeek } from '#src/stats.ts'
+import { getRuns, RUNS_SPANS } from '#src/server/functions.ts'
+import type { RunsSpan, RunWeek } from '#src/stats.ts'
 
 // Running: the last 4 weeks against the 4 before, 26 weeks of distance, each run's pace, the time
 // per HR zone, the records and Garmin's race predictions, every run of the period
 export const Route = createFileRoute('/runs')({
-  loader: () => getRuns(),
+  // ?span= is optional: 26 weeks by default
+  validateSearch: (search: Record<string, unknown>): { span?: RunsSpan } => {
+    const asked = search['span']
+    const span = RUNS_SPANS.find(
+      (option) => option === asked || (typeof option === 'number' && option === Number(asked))
+    )
+    return span === undefined || span === 26 ? {} : { span }
+  },
+  loaderDeps: ({ search }) => ({ span: search.span ?? 26 }),
+  loader: ({ deps }) => getRuns({ data: { span: deps.span } }),
   head: () => ({ meta: [{ title: 'Garmin · courses' }] }),
   component: Runs,
 })
@@ -37,6 +46,13 @@ function Change({
   )
 }
 
+const SPAN_LABEL: Record<RunsSpan, string> = { 26: '26 semaines', 52: '1 an', all: 'Tout' }
+const SPAN_TEXT: Record<RunsSpan, string> = {
+  26: '26 dernières semaines',
+  52: '52 dernières semaines',
+  all: 'depuis la première course',
+}
+
 const DISTANCE = [
   {
     key: 'km',
@@ -48,17 +64,36 @@ const DISTANCE = [
 
 function Runs() {
   const view = Route.useLoaderData()
+  const span = Route.useSearch().span ?? 26
   const { year, last28: now, previous28: before } = view
   const oldestFirst = view.runs.toReversed()
   const p = view.predictions
 
   return (
     <main>
-      <h1>Courses</h1>
-      <p className="sub">
-        {fmt(year.runs)} sorties depuis le 1er janvier · {fmt(year.distance_km)} km ·{' '}
-        {fmt(year.moving_h)} h · {fmt(year.ascent_m)} m de D+
-      </p>
+      <div className="heading">
+        <div>
+          <h1>Courses</h1>
+          <p className="sub">
+            {fmt(year.runs)} sorties depuis le 1er janvier · {fmt(year.distance_km)} km ·{' '}
+            {fmt(year.moving_h)} h · {fmt(year.ascent_m)} m de D+
+          </p>
+        </div>
+        <nav className="periods" aria-label="Période">
+          {RUNS_SPANS.map((option) => (
+            <Link
+              key={option}
+              to="/runs"
+              search={option === 26 ? {} : { span: option }}
+              className={option === span ? 'on' : undefined}
+              activeOptions={{ exact: true, includeSearch: true }}
+              aria-current={option === span ? 'page' : undefined}
+            >
+              {SPAN_LABEL[option]}
+            </Link>
+          ))}
+        </nav>
+      </div>
 
       <section>
         <h2>4 dernières semaines</h2>
@@ -107,7 +142,7 @@ function Runs() {
 
       <section className="card">
         <h2>Distance par semaine (km)</h2>
-        <p className="sub">26 dernières semaines</p>
+        <p className="sub">{SPAN_TEXT[span]}</p>
         <StackedColumns
           rows={view.weeks}
           series={DISTANCE}
@@ -120,7 +155,7 @@ function Runs() {
       <div className="grid cols-2" style={{ marginTop: 14 }}>
         <section className="card" style={{ marginTop: 0 }}>
           <h2>Allure de chaque sortie (min/km)</h2>
-          <p className="sub">Plus haut, plus rapide · 26 semaines</p>
+          <p className="sub">Plus haut, plus rapide · {SPAN_TEXT[span]}</p>
           <LineChart
             points={oldestFirst.map((run) => ({
               key: String(run.id),
@@ -187,7 +222,9 @@ function Runs() {
 
       <section className="card">
         <h2>Toutes les sorties</h2>
-        <p className="sub">{fmt(view.runs.length)} sur les 26 dernières semaines</p>
+        <p className="sub">
+          {fmt(view.runs.length)} · {SPAN_TEXT[span]}
+        </p>
         {view.runs.length === 0 ? (
           <p className="note muted">Aucune course sur la période.</p>
         ) : (

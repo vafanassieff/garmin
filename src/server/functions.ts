@@ -133,9 +133,30 @@ export const garminBackfill = createServerFn({ method: 'POST' }).handler(() =>
   runtime.runPromise(GarminSync.use((sync) => Effect.orDie(sync.backfill)))
 )
 
-export const getRuns = createServerFn({ method: 'GET' }).handler(() =>
-  runtime.runPromise(Stats.use((stats) => stats.runs).pipe(Effect.orDie))
-)
+const field = (input: unknown, name: string) =>
+  typeof input === 'object' && input !== null ? (input as Record<string, unknown>)[name] : null
+
+export const RUNS_SPANS = [26, 52, 'all'] as const
+
+export const getRuns = createServerFn({ method: 'GET' })
+  .validator((input: unknown) => ({
+    span: RUNS_SPANS.find((span) => span === field(input, 'span')) ?? 26,
+  }))
+  .handler(({ data }) =>
+    runtime.runPromise(Stats.use((stats) => stats.runs(data.span)).pipe(Effect.orDie))
+  )
+
+// Every activity, of one sport when asked (a Connect type: letters and underscores)
+export const getActivities = createServerFn({ method: 'GET' })
+  .validator((input: unknown) => {
+    const sport = field(input, 'sport')
+    return {
+      sport: typeof sport === 'string' && /^[a-z_]{1,40}$/u.test(sport) ? sport : null,
+    }
+  })
+  .handler(({ data }) =>
+    runtime.runPromise(Stats.use((stats) => stats.activities(data.sport)).pipe(Effect.orDie))
+  )
 
 export const getActivity = createServerFn({ method: 'GET' })
   .validator((input: unknown) => {
@@ -150,14 +171,11 @@ export const getActivity = createServerFn({ method: 'GET' })
     runtime.runPromise(Stats.use((stats) => stats.activity(data.id)).pipe(Effect.orDie))
   )
 
-export const SLEEP_PERIODS = [30, 90, 365] as const
+export const SLEEP_PERIODS = [30, 90, 365, 'all'] as const
 
 export const getSleep = createServerFn({ method: 'GET' })
   .validator((input: unknown) => {
-    const days =
-      typeof input === 'object' && input !== null
-        ? (input as Record<string, unknown>)['days']
-        : null
+    const days = field(input, 'days')
     return { days: SLEEP_PERIODS.find((period) => period === days) ?? 30 }
   })
   .handler(({ data }) =>

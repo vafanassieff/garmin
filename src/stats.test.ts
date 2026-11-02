@@ -45,7 +45,7 @@ layer(TestLayer, { excludeTestServices: true })('Stats', (it) => {
       yield* Ingest.use((ingest) => ingest.run())
       const stats = yield* Stats
 
-      const runs = yield* stats.runs
+      const runs = yield* stats.runs(26)
       expect(runs.last28).toMatchObject({ runs: 1, distance_km: 3.6 })
       // 1190 s over 3.6 km
       expect(runs.last28.pace_s).toBe(331)
@@ -73,8 +73,14 @@ layer(TestLayer, { excludeTestServices: true })('Stats', (it) => {
       expect(sleep.last).toMatchObject({ day: today, hrv_baseline_low: 46 })
       expect(sleep.averages).toMatchObject({ nights: 2, sleep_s: 26_400, sleep_score: 78 })
       expect(sleep.previous.nights).toBe(0)
-      // Asked for more than a year: a year
-      expect((yield* stats.sleep(10_000)).days).toBe(366)
+      // The whole history: from the first night (at least 30)
+      expect(yield* stats.sleep('all')).toMatchObject({ span: 'all', days: 30 })
+      expect((yield* stats.runs('all')).weeks).toHaveLength(26)
+      const everything = yield* stats.activities(null)
+      expect(everything.activities.map((activity) => activity.id)).toEqual([42])
+      expect(everything.activities[0]).toMatchObject({ on_foot: true, speed_kmh: 10.9 })
+      expect(everything.sports).toEqual([{ sport: 'running', count: 1 }])
+      expect((yield* stats.activities('cycling')).activities).toEqual([])
     })
   )
 })

@@ -18,6 +18,7 @@ import { Route as PasswordRouteImport } from './routes/password.tsx'
 import { Route as RunsRouteImport } from './routes/runs.tsx'
 import { Route as SetupRouteImport } from './routes/setup.tsx'
 import { Route as SleepRouteImport } from './routes/sleep.tsx'
+import { Route as ActivitiesIndexRouteImport } from './routes/activities.index.tsx'
 import { Route as ActivitiesIdRouteImport } from './routes/activities.$id.tsx'
 import { Route as AuthLoginRouteImport } from './routes/auth/login.ts'
 import { Route as AuthLogoutRouteImport } from './routes/auth/logout.ts'
@@ -69,6 +70,11 @@ const SleepRoute = SleepRouteImport.update({
   path: '/sleep',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ActivitiesIndexRoute = ActivitiesIndexRouteImport.update({
+  id: '/activities/',
+  path: '/activities/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ActivitiesIdRoute = ActivitiesIdRouteImport.update({
   id: '/activities/$id',
   path: '/activities/$id',
@@ -110,6 +116,7 @@ export interface FileRoutesByFullPath {
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
   '/auth/setup': typeof AuthSetupRoute
+  '/activities/': typeof ActivitiesIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
   '/auth/setup': typeof AuthSetupRoute
+  '/activities': typeof ActivitiesIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/auth/logout': typeof AuthLogoutRoute
   '/auth/password': typeof AuthPasswordRoute
   '/auth/setup': typeof AuthSetupRoute
+  '/activities/': typeof ActivitiesIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/auth/logout'
     | '/auth/password'
     | '/auth/setup'
+    | '/activities/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -177,6 +187,7 @@ export interface FileRouteTypes {
     | '/auth/logout'
     | '/auth/password'
     | '/auth/setup'
+    | '/activities'
   id:
     | '__root__'
     | '/'
@@ -193,6 +204,7 @@ export interface FileRouteTypes {
     | '/auth/logout'
     | '/auth/password'
     | '/auth/setup'
+    | '/activities/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -210,6 +222,7 @@ export interface RootRouteChildren {
   AuthLogoutRoute: typeof AuthLogoutRoute
   AuthPasswordRoute: typeof AuthPasswordRoute
   AuthSetupRoute: typeof AuthSetupRoute
+  ActivitiesIndexRoute: typeof ActivitiesIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -277,6 +290,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SleepRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/activities/': {
+      id: '/activities/'
+      path: '/activities'
+      fullPath: '/activities/'
+      preLoaderRoute: typeof ActivitiesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/activities/$id': {
       id: '/activities/$id'
       path: '/activities/$id'
@@ -330,6 +350,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthLogoutRoute: AuthLogoutRoute,
   AuthPasswordRoute: AuthPasswordRoute,
   AuthSetupRoute: AuthSetupRoute,
+  ActivitiesIndexRoute: ActivitiesIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
