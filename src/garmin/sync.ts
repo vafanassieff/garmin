@@ -157,6 +157,11 @@ export class GarminSync extends Context.Service<
     readonly backfilling: Effect.Effect<boolean>
     // Wakes the background loop now (after a login, or "sync now")
     readonly trigger: Effect.Effect<void>
+    // These months (YYYY-MM) of the calendar and their workouts fetched again, then ingested:
+    // planned_workouts reads back a change made on Garmin (see workouts.ts)
+    readonly refreshCalendar: (
+      months: ReadonlyArray<string>
+    ) => Effect.Effect<void, ApiFailure | DatabaseError>
     readonly recent: (limit: number) => Effect.Effect<ReadonlyArray<SyncRun>, DatabaseError>
     // Every SYNC_EVERY_HOURS (3 by default), or when triggered; while logged out it waits for a
     // new session (checked every minute: a CLI login is another process)
@@ -179,22 +184,56 @@ export class GarminSync extends Context.Service<
 
       const now = Effect.map(Clock.currentTimeMillis, (ms) => new Date(ms).toISOString())
 
+      // A file of data/, beside its target then renamed: the ingest never reads half a file
+      const writeData = (path: string, data: unknown) =>
+        Effect.gen(function* () {
+          const target = join(dataDir, path)
+          const partial = join(target, '..', `.${target.split('/').at(-1)}.partial`)
+          yield* fs.makeDirectory(join(target, '..'), { recursive: true })
+          if (data instanceof Uint8Array) yield* fs.writeFile(partial, data)
+          else yield* fs.writeFileString(partial, JSON.stringify(data))
+          yield* fs.rename(partial, target)
+        }).pipe(
+          Effect.mapError((error) => new GarminError({ message: `${path}: ${error.message}` }))
+        )
+
+      // One month (YYYY-MM) of the calendar into data/, and each workout it schedules, once in
+      // `seen` (the months overlap, a routine is scheduled under one id). `fetch` answers null
+      // for what is missing (a run goes on past a failing call; a refresh after a write does not)
+      const calendarMonth = <E>(
+        month: string,
+        seen: Set<number>,
+        fetch: (what: string, path: string) => Effect.Effect<unknown, E>,
+        write: (path: string, data: unknown) => Effect.Effect<void, GarminError>
+      ) =>
+        Effect.gen(function* () {
+          const year = Number(month.slice(0, 4))
+          // Garmin's months count from 0
+          const index = Number(month.slice(5, 7)) - 1
+          const calendar = yield* fetch(
+            `calendar ${month}`,
+            `/calendar-service/year/${year}/month/${index}`
+          )
+          if (calendar === null) return
+          yield* write(`connect/calendar/${month}.json`, calendar)
+          const items = record(calendar)['calendarItems']
+          for (const raw of Array.isArray(items) ? items : []) {
+            const item = decodeCalendarItem(raw)
+            const id = Option.isSome(item) ? item.value.workoutId : null
+            if (Option.isNone(item) || item.value.itemType !== 'workout' || !id) continue
+            if (seen.has(id)) continue
+            seen.add(id)
+            const workout = yield* fetch(`workout ${id}`, `/workout-service/workout/${id}`)
+            if (workout !== null) yield* write(`connect/workouts/${id}.json`, workout)
+          }
+        })
+
       const sync = (since: string | undefined, warnings: Array<string>, written: Ref.Ref<number>) =>
         Effect.gen(function* () {
           const exists = (path: string) =>
             fs.exists(join(dataDir, path)).pipe(Effect.orElseSucceed(() => false))
           const write = (path: string, data: unknown) =>
-            Effect.gen(function* () {
-              const target = join(dataDir, path)
-              const partial = join(target, '..', `.${target.split('/').at(-1)}.partial`)
-              yield* fs.makeDirectory(join(target, '..'), { recursive: true })
-              if (data instanceof Uint8Array) yield* fs.writeFile(partial, data)
-              else yield* fs.writeFileString(partial, JSON.stringify(data))
-              yield* fs.rename(partial, target)
-              yield* Ref.update(written, (n) => n + 1)
-            }).pipe(
-              Effect.mapError((error) => new GarminError({ message: `${path}: ${error.message}` }))
-            )
+            writeData(path, data).pipe(Effect.andThen(Ref.update(written, (n) => n + 1)))
           // The day of the account's oldest activity (the activity list, to its end), else the
           // default span
           const oldestActivityDay = (today: string) =>
@@ -389,27 +428,12 @@ export class GarminSync extends Context.Service<
           const workouts = new Set<number>()
           const calendarFrom = monthOf(addDays(monthOf(today), -1))
           for (const month of months(calendarFrom, addDays(monthOf(today), 62))) {
-            const year = Number(month.slice(0, 4))
-            const index = Number(month.slice(5, 7)) - 1
-            const calendar = yield* call(
-              `calendar ${month.slice(0, 7)}`,
-              api.json(`/calendar-service/year/${year}/month/${index}`)
+            yield* calendarMonth(
+              month.slice(0, 7),
+              workouts,
+              (what, path) => call(what, api.json(path)),
+              write
             )
-            if (calendar === null) continue
-            yield* write(`connect/calendar/${month.slice(0, 7)}.json`, calendar)
-            const items = record(calendar)['calendarItems']
-            for (const raw of Array.isArray(items) ? items : []) {
-              const item = decodeCalendarItem(raw)
-              const id = Option.isSome(item) ? item.value.workoutId : null
-              if (Option.isNone(item) || item.value.itemType !== 'workout' || !id) continue
-              if (workouts.has(id)) continue
-              workouts.add(id)
-              const workout = yield* call(
-                `workout ${id}`,
-                api.json(`/workout-service/workout/${id}`)
-              )
-              if (workout !== null) yield* write(`connect/workouts/${id}.json`, workout)
-            }
           }
           return { account, since: start }
         })
@@ -566,8 +590,20 @@ export class GarminSync extends Context.Service<
         }
       })
 
+      const refreshCalendar = Effect.fn('GarminSync.refreshCalendar')(function* (
+        wanted: ReadonlyArray<string>
+      ) {
+        const seen = new Set<number>()
+        for (const month of new Set(wanted)) {
+          if (!/^\d{4}-(?:0[1-9]|1[0-2])$/u.test(month)) continue
+          yield* calendarMonth(month, seen, (_, path) => api.json(path), writeData)
+        }
+        yield* ingest.run()
+      })
+
       return GarminSync.of({
         run,
+        refreshCalendar,
         running: Ref.get(busy),
         backfill,
         backfilling,

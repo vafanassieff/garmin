@@ -702,7 +702,7 @@ const CalendarWorkout = Schema.Struct({
 })
 
 const Target = Schema.optional(Schema.NullOr(Schema.Struct({ workoutTargetTypeKey: Str })))
-interface Step {
+export interface Step {
   readonly type?: string | null | undefined
   readonly stepType?: { readonly stepTypeKey?: string | null | undefined } | null | undefined
   readonly endCondition?:
@@ -758,7 +758,7 @@ const clock = (seconds: number) => {
 // m/s → min/km
 const pace = (speed: number) => `${clock(1000 / speed)}/km`
 
-const describeStep = (step: Step): string => {
+export const describeStep = (step: Step): string => {
   if (step.type === 'RepeatGroupDTO' || step.stepType?.stepTypeKey === 'repeat') {
     const inner = (step.workoutSteps ?? []).map((inner) => describeStep(inner)).join(', ')
     return `${step.numberOfIterations ?? '?'}× [${inner}]`

@@ -97,7 +97,10 @@ src/
   garmin/
     sso.ts         Garmin's SSO: login (mobile, then portal), MFA, ticket → DI tokens, refresh
     session.ts     the session's tokens in GARMIN_SESSION_PATH (0600), refreshed under a lock
-    api.ts         Garmin Connect's API (connectapi.garmin.com) with the bearer, 401 → refresh
+    api.ts         Garmin Connect's API (connectapi.garmin.com) with the bearer, 401 → refresh;
+                   writes (workouts, calendar) never retried
+    workout-builder.ts  workout inputs (paces, HR, durations, exercises) → Garmin's workout JSON
+    workouts.ts    create / schedule / unschedule / delete workouts, then refresh the calendar
     sync.ts        Garmin Connect → data/ → ingest, sync_runs, the 3-hour loop
     login.ts       the login's two steps (MFA kept in memory 10 min) for the web and the CLI
     cli.ts         `pnpm garmin login | status | logout | sync [--since YYYY-MM-DD]`
@@ -153,6 +156,16 @@ src/
   (the Garmin session, the last syncs, how fresh the data is).
 - `schema` and `sql`: one read-only SQLite statement (read-only connection, `PRAGMA query_only`,
   an authorizer that only allows reads, its own process killed after 30 s).
+- The workouts on the watch (`src/garmin/workouts.ts`), written to Garmin Connect through the
+  app's session: `create_workout` (runs with pace or HR targets, warm-up, cool-down, repeat
+  groups; strength circuits from Garmin's exercise catalog), optionally scheduled on dates;
+  `schedule_workout`; `unschedule_workout` (one calendar entry, named by its id, date and name);
+  `delete_workout` (one workout, named by its id and exact name). Each takes `dry_run` (the exact
+  requests, nothing sent); after a write the touched calendar months are fetched again, so
+  `planned_workouts` reads back what the watch gets. `list_workouts` (the library) and
+  `find_exercises` (the catalog, `src/garmin/exercises.json`, from garminconnect, MIT) help write
+  them. Inputs: paces as `"6'05/km"` or seconds per km, HR as bpm, durations as `"3:00"` or
+  seconds; the payloads are Garmin's workout editor's (`src/garmin/workout-builder.ts`).
 
 ## Commands
 

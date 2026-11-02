@@ -2,10 +2,12 @@ import { Effect, Layer, Schema } from 'effect'
 import { McpProtocol, McpServer, Tool, Toolkit } from 'effect/ai'
 
 import { GarminLogin } from './garmin/login.ts'
+import { findExercises, WorkoutSchema } from './garmin/workout-builder.ts'
+import { GarminWorkouts } from './garmin/workouts.ts'
 import { MAX_ROWS, QueryError, Reader } from './reader.ts'
 import { Tools } from './tools.ts'
 
-const DATA_MODEL = `Data: the user's Garmin history (watch, scale): every activity from its FIT file (laps, per-second samples) and Garmin Connect's summary, plus daily wellness (sleep, HRV, resting HR, body battery, readiness), weigh-ins and the Garmin calendar's planned workouts. Synced from Garmin Connect every 3 hours (sync_status tells when). Read-only.
+const DATA_MODEL = `Data: the user's Garmin history (watch, scale): every activity from its FIT file (laps, per-second samples) and Garmin Connect's summary, plus daily wellness (sleep, HRV, resting HR, body battery, readiness), weigh-ins and the Garmin calendar's planned workouts. Synced from Garmin Connect every 3 hours (sync_status tells when). The SQL is read-only; the workout tools (create_workout, schedule_workout, unschedule_workout, delete_workout) write to the Garmin calendar and refresh planned_workouts right after.
 Conventions: timestamps ISO 8601 UTC text, start_local local wall time, day YYYY-MM-DD (local). Metres, seconds, m/s, bpm, kg. Cadence is steps/min on foot, rpm on a bike.
 Tables and views:
 - activities: one row per Garmin Connect activity (id = its activity id). sport (Connect's type: running, trail_running, cycling, lap_swimming, hiking, strength_training…), name, start_time, start_local, day, elapsed_s, moving_s, distance_m, ascent_m, descent_m, avg_hr, max_hr, avg_speed, max_speed, avg_cadence, max_cadence, avg_power, max_power, norm_power, calories, training_load (Garmin's EPOC load), aerobic_te / anaerobic_te (training effect 0-5), te_label (TEMPO, BASE…), vo2max, rpe (0-10) and feel (0-100) entered after it, hr_z1_s…hr_z5_s (seconds in the watch's HR zones), hr_zone_bounds (JSON: the zones' top bounds [z0, z1…z5]), workout_name (the structured workout run, as in planned_workouts.name), gear, device, start_lat/start_lon, polyline (Google encoded, precision 5).
@@ -15,7 +17,7 @@ Tables and views:
 - daily: one row per day. Sleep is the night ending that morning: sleep_start, sleep_end, sleep_s, deep_s, light_s, rem_s, awake_s, nap_s, sleep_score; hrv (overnight average, ms), hrv_weekly, hrv_status (BALANCED, UNBALANCED, LOW…), hrv_baseline_low/high; resting_hr, min_hr, max_hr; body_battery_high/low/wake/charged/drained; steps, distance_m, active_kcal, total_kcal; stress_avg, stress_max; intensity_moderate_min, intensity_vigorous_min; respiration_avg, spo2_avg; readiness (the morning's training readiness 0-100), readiness_level, readiness_feedback, recovery_time_h, acute_load (Garmin's 7-day acute load); chronic_load, training_status; vo2max / vo2max_cycling (only on days measured); race_5k_s, race_10k_s, race_half_s, race_marathon_s (Garmin's predictions).
 - weekly (view): per ISO week (week = Monday) and sport: activities, distance_km, moving_h, ascent_m, training_load, longest_km, z4_z5_min.
 - body: weigh-ins: time, day, weight_kg, bmi, body_fat_pct, body_water_pct, muscle_mass_kg, bone_mass_kg, visceral_fat, source.
-- planned_workouts: the Garmin calendar's scheduled workouts: id, day, workout_id, name, sport, description, estimated_duration_s, estimated_distance_m, steps (one readable line per step: "interval 3:00 HR 165-172", "5× [...]").
+- planned_workouts: the Garmin calendar's scheduled workouts: id (the calendar entry: unschedule_workout's schedule_id), day, workout_id (the library's workout: schedule_workout, delete_workout), name, sport, description, estimated_duration_s, estimated_distance_m, steps (one readable line per step: "interval 3:00 HR 165-172", "5× [...]").
 - raw_files: the source files ingested (path, error).
 - sync_runs: each sync with Garmin Connect: started_at, finished_at, ok, logged_out, account, since, files_written, warnings (JSON), error.`
 
@@ -123,7 +125,7 @@ const WeeklyLoad = Tool.make('weekly_load', {
 
 const PlannedWorkouts = Tool.make('planned_workouts', {
   description:
-    "The Garmin calendar's scheduled workouts with their steps (durations, HR and pace targets), and the ids of the activities that ran them.",
+    "The Garmin calendar's scheduled workouts with their steps (durations, HR and pace targets), and the ids of the activities that ran them. Each has its calendar entry id (unschedule_workout's schedule_id) and its workout_id (schedule_workout, delete_workout).",
   parameters: Schema.Struct({
     from: Schema.optional(Day.annotate({ description: 'Default today' })),
     to: Schema.optional(Day.annotate({ description: 'Default from + 14 days' })),
@@ -145,6 +147,126 @@ const SyncStatus = Tool.make('sync_status', {
   failureMode: 'return',
 })
   .annotate(Tool.Title, 'Sync status')
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.OpenWorld, false)
+
+// --- The workouts on the watch: these change the user's real Garmin Connect account
+
+const WATCH =
+  "It changes the user's real Garmin Connect account: the watch gets it at its next sync with the Garmin Connect app."
+
+const CreateWorkout = Tool.make('create_workout', {
+  description: `Create a structured workout in the user's Garmin Connect library (runs with pace or heart-rate targets, warm-up, cool-down, repeat groups; strength circuits of exercises from Garmin's catalog, see find_exercises), and schedule it on the given dates. ${WATCH}
+Conventions: name runs with their date and plan, one workout per date (e.g. "Plan - tue 03/11 - Easy 40' + 5 strides"), and schedule each on its date; a routine (the same strength circuit every morning) is one workout scheduled on many dates. At most one scheduled workout a day: with two, the watch stops offering the run. A workout with the same name already in the library is refused (delete it first, or schedule the existing one).
+Steps: each ends after exactly one of duration ("3:00", "45'", 180 s), distance_m, reps (strength) or lap_button: true; one target at most: pace { slow, fast } ("6'10/km", or seconds per km) or hr { low, high } (bpm). Repeat groups: { repeat: 6, steps: [...] }.
+dry_run: true checks everything and returns the exact requests and the steps as the watch will show them, sending nothing. Returns the workout id, its calendar entries (schedule ids) and planned_workouts read back after the write.`,
+  parameters: Schema.Struct({
+    ...WorkoutSchema.fields,
+    schedule: Schema.optional(
+      Schema.Array(Day).annotate({
+        description: 'Dates to schedule it on (YYYY-MM-DD); none: library only',
+      })
+    ),
+    dry_run: Schema.optional(
+      Schema.Boolean.annotate({ description: 'Return the requests without sending them' })
+    ),
+    allow_duplicate_name: Schema.optional(
+      Schema.Boolean.annotate({ description: 'Create it even if a workout has this name already' })
+    ),
+  }),
+  success: Schema.Unknown,
+  failure: ToolError,
+  failureMode: 'return',
+})
+  .annotate(Tool.Title, 'Create a workout on the watch')
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, false)
+  .annotate(Tool.OpenWorld, true)
+
+const ScheduleWorkout = Tool.make('schedule_workout', {
+  description: `Schedule a workout of the library (its workout_id: list_workouts, planned_workouts) on one more date of the Garmin calendar. ${WATCH} dry_run: true returns the request without sending it. Returns the calendar entries of that day, read back.`,
+  parameters: Schema.Struct({
+    workout_id: Schema.Number,
+    date: Day,
+    dry_run: Schema.optional(Schema.Boolean),
+  }),
+  success: Schema.Unknown,
+  failure: ToolError,
+  failureMode: 'return',
+})
+  .annotate(Tool.Title, 'Schedule a workout on the watch')
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.Idempotent, false)
+  .annotate(Tool.OpenWorld, true)
+
+const UnscheduleWorkout = Tool.make('unschedule_workout', {
+  description: `Remove one calendar entry from the Garmin calendar (the workout stays in the library). Name it exactly: its schedule_id (planned_workouts' id), its date and its workout's name, checked against Garmin's calendar before anything is removed. One entry per call, never by pattern. ${WATCH} dry_run: true returns the request without sending it.`,
+  parameters: Schema.Struct({
+    schedule_id: Schema.Number.annotate({
+      description: "The calendar entry's id (planned_workouts.id)",
+    }),
+    date: Day,
+    name: Schema.String.annotate({ description: "The workout's exact name on that entry" }),
+    dry_run: Schema.optional(Schema.Boolean),
+  }),
+  success: Schema.Unknown,
+  failure: ToolError,
+  failureMode: 'return',
+})
+  .annotate(Tool.Title, 'Remove a workout from the calendar')
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, true)
+
+const DeleteWorkout = Tool.make('delete_workout', {
+  description: `Delete one workout from the Garmin Connect library, with every calendar entry that schedules it. Name it exactly: its workout_id and its exact name, checked against Garmin before anything is deleted. One workout per call, never by pattern. ${WATCH} dry_run: true returns the request and the calendar entries that would go, without sending it.`,
+  parameters: Schema.Struct({
+    workout_id: Schema.Number,
+    name: Schema.String.annotate({ description: "The workout's exact name" }),
+    dry_run: Schema.optional(Schema.Boolean),
+  }),
+  success: Schema.Unknown,
+  failure: ToolError,
+  failureMode: 'return',
+})
+  .annotate(Tool.Title, 'Delete a workout from the watch')
+  .annotate(Tool.Readonly, false)
+  .annotate(Tool.Destructive, true)
+  .annotate(Tool.Idempotent, true)
+  .annotate(Tool.OpenWorld, true)
+
+const ListWorkouts = Tool.make('list_workouts', {
+  description:
+    "The workouts of the user's Garmin Connect library (scheduled or not), newest first: workout_id, name, sport, estimated minutes, created and updated. Read-only.",
+  parameters: Schema.Struct({
+    name_contains: Schema.optional(Schema.String.annotate({ description: 'Case-insensitive' })),
+    limit: Schema.optional(Schema.Number.annotate({ description: 'Default 100, at most 1000' })),
+  }),
+  success: Schema.Unknown,
+  failure: ToolError,
+  failureMode: 'return',
+})
+  .annotate(Tool.Title, 'List the workout library')
+  .annotate(Tool.Readonly, true)
+  .annotate(Tool.Destructive, false)
+  .annotate(Tool.OpenWorld, true)
+
+const FindExercises = Tool.make('find_exercises', {
+  description:
+    "Search Garmin's catalog of strength exercises (1527, its workout editor's) for create_workout: every word must match the name or the keys, e.g. 'side plank', 'superman', 'calf raise'. Returns the name (create_workout's exercise) and the category and exercise_name keys.",
+  parameters: Schema.Struct({
+    query: Schema.String,
+    limit: Schema.optional(Schema.Number.annotate({ description: 'Default 25' })),
+  }),
+  success: Schema.Unknown,
+  failure: ToolError,
+  failureMode: 'return',
+})
+  .annotate(Tool.Title, 'Find strength exercises')
   .annotate(Tool.Readonly, true)
   .annotate(Tool.Destructive, false)
   .annotate(Tool.OpenWorld, false)
@@ -188,7 +310,13 @@ export const GarminToolkit = Toolkit.make(
   PlannedWorkouts,
   SyncStatus,
   SchemaTool,
-  SqlTool
+  SqlTool,
+  CreateWorkout,
+  ScheduleWorkout,
+  UnscheduleWorkout,
+  DeleteWorkout,
+  ListWorkouts,
+  FindExercises
 )
 
 export const capRows = (
@@ -216,6 +344,9 @@ const ToolkitHandlers = GarminToolkit.toLayer(
     const reader = yield* Reader
     const tools = yield* Tools
     const garmin = yield* GarminLogin
+    const workouts = yield* GarminWorkouts
+    const asTool = <A>(effect: Effect.Effect<A, { readonly message: string }>) =>
+      Effect.mapError(effect, (error) => new ToolError({ message: error.message }))
     return GarminToolkit.of({
       list_activities: (options) => orToolError(tools.listActivities(options)),
       get_activity: (options) =>
@@ -259,6 +390,22 @@ const ToolkitHandlers = GarminToolkit.toLayer(
           })
         ),
       sql: ({ query }) => reader.query(query).pipe(Effect.map((result) => capRows(result))),
+      create_workout: ({ schedule, dry_run, allow_duplicate_name, ...input }) =>
+        asTool(workouts.create(input, { schedule, dry_run, allow_duplicate_name })),
+      schedule_workout: (options) => asTool(workouts.schedule(options)),
+      unschedule_workout: (options) => asTool(workouts.unschedule(options)),
+      delete_workout: (options) => asTool(workouts.remove(options)),
+      list_workouts: (options) => asTool(workouts.library(options)),
+      find_exercises: ({ query, limit }) =>
+        Effect.succeed(
+          findExercises(query, Math.min(Math.max(Math.trunc(limit ?? 25), 1), 200)).map(
+            (entry) => ({
+              name: entry.name,
+              category: entry.category,
+              exercise_name: entry.exercise,
+            })
+          )
+        ),
     })
   })
 )

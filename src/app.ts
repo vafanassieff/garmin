@@ -8,6 +8,7 @@ import { GarminApi } from './garmin/api.ts'
 import { GarminLogin } from './garmin/login.ts'
 import { GarminSession } from './garmin/session.ts'
 import { GarminSync } from './garmin/sync.ts'
+import { GarminWorkouts } from './garmin/workouts.ts'
 import { Routes } from './http.ts'
 import { Ingest } from './ingest.ts'
 import { Mcp } from './mcp.ts'
@@ -17,8 +18,8 @@ import { Stats } from './stats.ts'
 import { Tools } from './tools.ts'
 
 // The Garmin account: its session (a file of its own), the API, the sync into data/ and SQLite,
-// the login (web and CLI)
-export const Garmin = GarminLogin.layer.pipe(
+// the login (web and CLI), the workouts written to its calendar (the MCP's)
+export const Garmin = Layer.merge(GarminLogin.layer, GarminWorkouts.layer).pipe(
   Layer.provideMerge(GarminSync.layer),
   Layer.provideMerge(GarminApi.layer),
   Layer.provideMerge(GarminSession.layer),

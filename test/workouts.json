@@ -1,0 +1,473 @@
+{
+  "source": "The payloads of the reference Python plan script (garminconnect 0.3.7, in production until 2026-11), its builders verbatim, for generic workouts",
+  "easy": {
+    "workoutName": "Test - Easy 40' + 3 strides",
+    "description": "Easy run.",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running",
+      "displayOrder": 1
+    },
+    "estimatedDurationInSecs": 2400,
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running",
+          "displayOrder": 1
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 1,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval",
+              "displayOrder": 3
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time",
+              "displayOrder": 2,
+              "displayable": true
+            },
+            "endConditionValue": 2220.0,
+            "targetType": {
+              "workoutTargetTypeId": 4,
+              "workoutTargetTypeKey": "heart.rate.zone",
+              "displayOrder": 4
+            },
+            "targetValueOne": 120,
+            "targetValueTwo": 150,
+            "description": "Easy"
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepOrder": 2,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat",
+              "displayOrder": 6
+            },
+            "numberOfIterations": 3,
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations",
+              "displayOrder": 7,
+              "displayable": false
+            },
+            "endConditionValue": 3.0,
+            "smartRepeat": false,
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepOrder": 3,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval",
+                  "displayOrder": 3
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time",
+                  "displayOrder": 2,
+                  "displayable": true
+                },
+                "endConditionValue": 20.0,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target",
+                  "displayOrder": 1
+                },
+                "description": "Stride"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepOrder": 4,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery",
+                  "displayOrder": 4
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time",
+                  "displayOrder": 2,
+                  "displayable": true
+                },
+                "endConditionValue": 40.0,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target",
+                  "displayOrder": 1
+                },
+                "description": "Walk back"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "threshold": {
+    "workoutName": "Test - Threshold 6x3'",
+    "description": "Threshold.",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running",
+      "displayOrder": 1
+    },
+    "estimatedDurationInSecs": 3120,
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running",
+          "displayOrder": 1
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 1,
+            "stepType": {
+              "stepTypeId": 1,
+              "stepTypeKey": "warmup",
+              "displayOrder": 1
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time",
+              "displayOrder": 2,
+              "displayable": true
+            },
+            "endConditionValue": 900.0,
+            "targetType": {
+              "workoutTargetTypeId": 4,
+              "workoutTargetTypeKey": "heart.rate.zone",
+              "displayOrder": 4
+            },
+            "targetValueOne": 120,
+            "targetValueTwo": 150,
+            "description": "Warm-up"
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepOrder": 2,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat",
+              "displayOrder": 6
+            },
+            "numberOfIterations": 6,
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations",
+              "displayOrder": 7,
+              "displayable": false
+            },
+            "endConditionValue": 6.0,
+            "smartRepeat": false,
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepOrder": 3,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval",
+                  "displayOrder": 3
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time",
+                  "displayOrder": 2,
+                  "displayable": true
+                },
+                "endConditionValue": 180.0,
+                "targetType": {
+                  "workoutTargetTypeId": 6,
+                  "workoutTargetTypeKey": "pace.zone",
+                  "displayOrder": 6
+                },
+                "targetValueOne": 2.898550724637681,
+                "targetValueTwo": 2.985074626865672
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepOrder": 4,
+                "stepType": {
+                  "stepTypeId": 4,
+                  "stepTypeKey": "recovery",
+                  "displayOrder": 4
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time",
+                  "displayOrder": 2,
+                  "displayable": true
+                },
+                "endConditionValue": 90.0,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target",
+                  "displayOrder": 1
+                },
+                "description": "Jog"
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 5,
+            "stepType": {
+              "stepTypeId": 2,
+              "stepTypeKey": "cooldown",
+              "displayOrder": 2
+            },
+            "endCondition": {
+              "conditionTypeId": 2,
+              "conditionTypeKey": "time",
+              "displayOrder": 2,
+              "displayable": true
+            },
+            "endConditionValue": 600.0,
+            "targetType": {
+              "workoutTargetTypeId": 4,
+              "workoutTargetTypeKey": "heart.rate.zone",
+              "displayOrder": 4
+            },
+            "targetValueOne": 120,
+            "targetValueTwo": 150,
+            "description": "Cool-down"
+          }
+        ]
+      }
+    ]
+  },
+  "race": {
+    "workoutName": "Test - Race 21.1 km",
+    "description": "Race.",
+    "sportType": {
+      "sportTypeId": 1,
+      "sportTypeKey": "running",
+      "displayOrder": 1
+    },
+    "estimatedDurationInSecs": 7620,
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 1,
+          "sportTypeKey": "running",
+          "displayOrder": 1
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 1,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval",
+              "displayOrder": 3
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance",
+              "displayOrder": 3,
+              "displayable": true
+            },
+            "endConditionValue": 3000.0,
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone",
+              "displayOrder": 6
+            },
+            "targetValueOne": 2.6315789473684212,
+            "targetValueTwo": 2.7027027027027026,
+            "description": "Start easy"
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 2,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval",
+              "displayOrder": 3
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance",
+              "displayOrder": 3,
+              "displayable": true
+            },
+            "endConditionValue": 12000.0,
+            "targetType": {
+              "workoutTargetTypeId": 6,
+              "workoutTargetTypeKey": "pace.zone",
+              "displayOrder": 6
+            },
+            "targetValueOne": 2.717391304347826,
+            "targetValueTwo": 2.7777777777777777
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 3,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval",
+              "displayOrder": 3
+            },
+            "endCondition": {
+              "conditionTypeId": 3,
+              "conditionTypeKey": "distance",
+              "displayOrder": 3,
+              "displayable": true
+            },
+            "endConditionValue": 6098.0,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target",
+              "displayOrder": 1
+            },
+            "description": "Finish"
+          }
+        ]
+      }
+    ]
+  },
+  "core": {
+    "workoutName": "Test - Core routine",
+    "description": "Core.",
+    "sportType": {
+      "sportTypeId": 5,
+      "sportTypeKey": "strength_training",
+      "displayOrder": 5
+    },
+    "estimatedDurationInSecs": 360,
+    "workoutSegments": [
+      {
+        "segmentOrder": 1,
+        "sportType": {
+          "sportTypeId": 5,
+          "sportTypeKey": "strength_training",
+          "displayOrder": 5
+        },
+        "workoutSteps": [
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 1,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval",
+              "displayOrder": 3
+            },
+            "endCondition": {
+              "conditionTypeId": 10,
+              "conditionTypeKey": "reps",
+              "displayOrder": 10,
+              "displayable": true
+            },
+            "endConditionValue": 10.0,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target",
+              "displayOrder": 1
+            },
+            "description": "Slow",
+            "category": "WARM_UP",
+            "exerciseName": "CAT_CAMEL"
+          },
+          {
+            "type": "RepeatGroupDTO",
+            "stepOrder": 2,
+            "stepType": {
+              "stepTypeId": 6,
+              "stepTypeKey": "repeat",
+              "displayOrder": 6
+            },
+            "numberOfIterations": 2,
+            "endCondition": {
+              "conditionTypeId": 7,
+              "conditionTypeKey": "iterations",
+              "displayOrder": 7,
+              "displayable": false
+            },
+            "endConditionValue": 2.0,
+            "smartRepeat": false,
+            "workoutSteps": [
+              {
+                "type": "ExecutableStepDTO",
+                "stepOrder": 3,
+                "stepType": {
+                  "stepTypeId": 3,
+                  "stepTypeKey": "interval",
+                  "displayOrder": 3
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time",
+                  "displayOrder": 2,
+                  "displayable": true
+                },
+                "endConditionValue": 30.0,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target",
+                  "displayOrder": 1
+                },
+                "description": "Left side",
+                "category": "PLANK",
+                "exerciseName": "SIDE_PLANK"
+              },
+              {
+                "type": "ExecutableStepDTO",
+                "stepOrder": 4,
+                "stepType": {
+                  "stepTypeId": 5,
+                  "stepTypeKey": "rest",
+                  "displayOrder": 5
+                },
+                "endCondition": {
+                  "conditionTypeId": 2,
+                  "conditionTypeKey": "time",
+                  "displayOrder": 2,
+                  "displayable": true
+                },
+                "endConditionValue": 15.0,
+                "targetType": {
+                  "workoutTargetTypeId": 1,
+                  "workoutTargetTypeKey": "no.target",
+                  "displayOrder": 1
+                }
+              }
+            ]
+          },
+          {
+            "type": "ExecutableStepDTO",
+            "stepOrder": 5,
+            "stepType": {
+              "stepTypeId": 3,
+              "stepTypeKey": "interval",
+              "displayOrder": 3
+            },
+            "endCondition": {
+              "conditionTypeId": 10,
+              "conditionTypeKey": "reps",
+              "displayOrder": 10,
+              "displayable": true
+            },
+            "endConditionValue": 12.0,
+            "targetType": {
+              "workoutTargetTypeId": 1,
+              "workoutTargetTypeKey": "no.target",
+              "displayOrder": 1
+            },
+            "category": "HIP_RAISE",
+            "exerciseName": "HIP_RAISE"
+          }
+        ]
+      }
+    ]
+  }
+}

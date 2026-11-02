@@ -350,7 +350,8 @@ export class Tools extends Context.Service<
         const today = yield* parisToday
         const from = options.from ?? today
         return yield* all(sql`
-          SELECT p.day, p.name, p.sport, p.description, p.estimated_duration_s, p.steps,
+          SELECT p.id AS schedule_id, p.workout_id, p.day, p.name, p.sport, p.description,
+            p.estimated_duration_s, p.steps,
             (SELECT group_concat(a.id) FROM activities a WHERE a.day = p.day AND a.workout_name = p.name) AS done_activity_ids
           FROM planned_workouts p
           WHERE p.day BETWEEN ${from} AND ${options.to ?? addDays(from, 14)} ORDER BY p.day`)
