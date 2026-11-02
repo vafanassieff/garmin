@@ -50,7 +50,7 @@ let addresses = 0
 const register = (body: unknown = CLAUDE_CODE) =>
   OAuth.use((oauth) => oauth.register(body, `10.0.0.${(addresses += 1)}`)).pipe(
     Effect.map((client) => {
-      if (client === 'throttled' || isError(client)) throw new Error(String(client))
+      if (client === 'throttled' || isError(client)) throw new Error(JSON.stringify(client))
       return client
     })
   )
