@@ -14,6 +14,7 @@ import { hashPassword, verifyPassword } from './password.ts'
 
 export const SESSION_COOKIE = 'garmin_web'
 const SESSION_DAYS = 30
+const SESSION_MS = SESSION_DAYS * 86_400_000
 
 // Wrong passwords, per minute: 10 per client, 60 in all; and 2 checks at a time (scrypt takes
 // 100 ms and 32 MiB of the thread pool each). Past that the check is refused without running.
@@ -63,6 +64,8 @@ export class Auth extends Context.Service<
     // logs every browser out)
     readonly issueSession: Effect.Effect<Session>
     readonly verifySession: (value: string) => Effect.Effect<boolean>
+    // Logs every browser out (the MCP's token stays): the sessions issued until now are refused
+    readonly logout: Effect.Effect<void>
     // Whether a password was chosen; until then, the app only offers /setup
     readonly hasPassword: Effect.Effect<boolean>
     // The first password, only while there is none (the first one to answer wins: open /setup
@@ -97,6 +100,18 @@ export class Auth extends Context.Service<
       const digest = (token: string) => createHash('sha256').update(token).digest()
       const keyOf = (of: string) =>
         createHash('sha256').update(`garmin web session\0${of}`).digest()
+      // When the browsers were last logged out (ms), kept beside the password: a session issued
+      // until then (its expiry less SESSION_MS) is refused, even a copy of its cookie
+      const loggedOutPath = join(dirname(path), 'logged-out')
+      let loggedOutAt = yield* Effect.promise(() =>
+        readFile(loggedOutPath, 'utf8').then(
+          (text) => Number(text.trim()) || Number.NEGATIVE_INFINITY,
+          (error: unknown) => {
+            if (isCode(error, 'ENOENT')) return Number.NEGATIVE_INFINITY
+            throw error
+          }
+        )
+      )
       let sessionKey = hash === undefined ? undefined : keyOf(hash)
       const sign = (key: Buffer, expiry: string) =>
         createHmac('sha256', key).update(expiry).digest('base64url')
@@ -158,7 +173,7 @@ export class Auth extends Context.Service<
 
       // No password yet: no session either (an empty key would sign anything)
       const issueSession = Effect.map(Clock.currentTimeMillis, (now): Session => {
-        const expiry = String(now + SESSION_DAYS * 86_400_000)
+        const expiry = String(now + SESSION_MS)
         const key = sessionKey ?? keyOf(randomUUID())
         return { value: `${expiry}.${sign(key, expiry)}`, maxAge: SESSION_DAYS * 86_400 }
       })
@@ -223,9 +238,20 @@ export class Auth extends Context.Service<
             return (
               expected.length === given.length &&
               timingSafeEqual(expected, given) &&
-              Number(expiry) > now
+              Number(expiry) > now &&
+              Number(expiry) - SESSION_MS > loggedOutAt
             )
           }),
+        logout: Effect.gen(function* () {
+          const now = yield* Clock.currentTimeMillis
+          yield* Effect.promise(async () => {
+            await mkdir(dirname(path), { recursive: true, mode: 0o700 })
+            const partial = join(dirname(path), `.logged-out.${randomUUID()}`)
+            await writeFile(partial, `${now}\n`, { mode: 0o600 })
+            await rename(partial, loggedOutPath)
+          })
+          loggedOutAt = now
+        }),
       }
     })
   )

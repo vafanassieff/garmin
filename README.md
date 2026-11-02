@@ -34,7 +34,8 @@ data/ ──(ingest, @garmin/fitsdk)──▶ SQLite ──▶ MCP at /mcp, web 
   sets a signed session cookie (30 days, `Secure` but on localhost). It is chosen in the web app on
   the first visit (`/setup`, at least 12 characters), changed on `/password` (which logs every
   other browser and the MCP out), and only its scrypt hash is kept, in its own file
-  (`PASSWORD_PATH`, 0600 in a 0700 directory, beside the Garmin session). Until it is chosen the
+  (`PASSWORD_PATH`, 0600 in a 0700 directory, beside the Garmin session). Logging out logs every
+  browser out (not the MCP), a copied cookie included. Until it is chosen the
   app offers nothing but `/setup`, to whoever opens it first: open it right after deploying.
   Wrong passwords are throttled: 10 a minute per client (the last address of `X-Forwarded-For`,
   set by the reverse proxy), 60 a minute in all, 2 checks at a time; past that the login says to
@@ -183,7 +184,7 @@ garmin:
     TZ: Europe/Paris
 ```
 
-1. Create both directories owned by uid 1000, `session` in 0700
+1. Create both directories owned by uid 1000, in 0700 (the app creates every file 0600)
 2. Start it and open `/setup` at once: choose the app's password
 3. On `/garmin`, log the Garmin account in (email, password, the MFA code Garmin sends). The
    first sync (last 14 days) starts at once. From a terminal instead:

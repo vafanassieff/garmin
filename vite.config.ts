@@ -11,5 +11,23 @@ export default defineConfig({
     react(),
     nitro({ plugins: ['./src/server/nitro.ts'] }),
   ],
-  server: { port: 3000 },
+  server: {
+    port: 3000,
+    // Vite's own list, then the health data and the secrets: `vite dev` serves the project's files
+    // before the app's gate
+    fs: {
+      deny: [
+        '.env',
+        '.env.*',
+        '*.{crt,pem}',
+        '**/.git/**',
+        '**/data/**',
+        '**/.tokens/**',
+        '*.db',
+        '*.db-*',
+        '*.fit',
+        '*.zip',
+      ],
+    },
+  },
 })

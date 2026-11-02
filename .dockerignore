@@ -16,3 +16,7 @@ test
 **/.output
 **/.tanstack
 **/.nitro
+*.zip
+*.fit
+**/.env.*
+mise.local.toml

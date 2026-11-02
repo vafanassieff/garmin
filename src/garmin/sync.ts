@@ -49,6 +49,8 @@ const FRESH_DAYS = 3
 const ACTIVITY_FRESH_DAYS = 14
 const DEFAULT_BACK_DAYS = 14
 const PAGE = 100
+// 100 000 activities at most: a list that never ends is Garmin's bug, not a history
+const MAX_OFFSET = 100_000
 export const ALL = 'all'
 // Past a month of days, the run paces itself
 const BACKFILL_DAYS = 31
@@ -198,7 +200,7 @@ export class GarminSync extends Context.Service<
           const oldestActivityDay = (today: string) =>
             Effect.gen(function* () {
               let oldest: string | undefined
-              for (let offset = 0; ; offset += PAGE) {
+              for (let offset = 0; offset < MAX_OFFSET; offset += PAGE) {
                 const items = yield* api.json(
                   '/activitylist-service/activities/search/activities',
                   {
@@ -253,7 +255,7 @@ export class GarminSync extends Context.Service<
           yield* Effect.logInfo(`syncing ${accountName(account)} from ${start}`)
 
           // Activities, newest first, until one starts before `start`
-          for (let offset = 0; ; offset += PAGE) {
+          for (let offset = 0; offset < MAX_OFFSET; offset += PAGE) {
             const page = yield* call(
               'activities',
               api.json('/activitylist-service/activities/search/activities', {

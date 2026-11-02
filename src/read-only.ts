@@ -23,7 +23,8 @@ export const openReadOnly = (path: string): DatabaseSync => {
     readOnly: true,
     defensive: true,
     timeout: 5000,
-    limits: { attach: 0 },
+    // No ATTACH; a string or blob of 16 MiB at most
+    limits: { attach: 0, length: 16 * 1024 * 1024 },
   })
   db.exec('PRAGMA query_only = ON')
   db.setAuthorizer((action, arg1, arg2) => {
@@ -55,12 +56,15 @@ export type Outcome =
   | { readonly rows: ReadonlyArray<Record<string, unknown>>; readonly total: number }
   | { readonly error: string }
 
+// The rows kept, as JSON: the app reads the whole answer in memory
+const MAX_BYTES = 16 * 1024 * 1024
+
 // What may follow the end of a statement without starting another: whitespace, semicolons, comments
 const gap = /^(?:\s|;|--[^\n]*|\/\*[\s\S]*?\*\/)*$/u
 
-// Runs exactly one statement, keeping its first `maxRows` rows and counting the rest. SQLite
-// compiles the first statement of a string and ignores the rest: anything after it but a gap is
-// refused rather than silently dropped.
+// Runs exactly one statement, keeping its first `maxRows` rows and counting the rest, refused past
+// MAX_BYTES. SQLite compiles the first statement of a string and ignores the rest: anything after
+// it but a gap is refused rather than silently dropped.
 export const runStatement = (db: DatabaseSync, statement: string, maxRows: number): Outcome => {
   try {
     const prepared = db.prepare(statement)
@@ -69,8 +73,15 @@ export const runStatement = (db: DatabaseSync, statement: string, maxRows: numbe
     }
     const rows: Array<Record<string, unknown>> = []
     let total = 0
+    let bytes = 0
     for (const row of prepared.iterate()) {
-      if (total < maxRows) rows.push(row)
+      if (total < maxRows) {
+        bytes += JSON.stringify(row).length
+        if (bytes > MAX_BYTES) {
+          return { error: 'The result is over 16 MB: select fewer rows or columns.' }
+        }
+        rows.push(row)
+      }
       total += 1
     }
     return { rows, total }

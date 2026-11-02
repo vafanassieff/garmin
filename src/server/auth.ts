@@ -9,3 +9,5 @@ export const verifyBearer = (token: string, client: string) =>
 
 export const verifySession = (value: string) =>
   runtime.runPromise(Auth.use((auth) => auth.verifySession(value)))
+
+export const logout = () => runtime.runPromise(Auth.use((auth) => auth.logout))

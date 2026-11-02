@@ -1,3 +1,4 @@
+import process from 'node:process'
 import { DatabaseSync } from 'node:sqlite'
 
 import { drizzle, type NodeSQLiteDatabase } from 'drizzle-orm/node-sqlite'
@@ -50,6 +51,9 @@ export class Database extends Context.Service<
     Database,
     Effect.gen(function* () {
       const path = yield* Config.String('DATABASE_PATH')
+      // Health data: every file this process creates (SQLite, data/, the sessions) is its user's
+      // alone, 0600 in 0700, whatever the umask it was started with
+      yield* Effect.sync(() => process.umask(0o077))
       const client = yield* Effect.acquireRelease(
         Effect.try({
           try: () => openDatabase(path, 0),

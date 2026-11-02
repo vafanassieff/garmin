@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { expect, layer } from '@effect/vitest'
-import { ConfigProvider, Effect, Layer } from 'effect'
+import { Config, ConfigProvider, Effect, Layer } from 'effect'
 import { describe, it } from 'vitest'
 
 import { Auth, clientOf, failureLog, gate, safeNext, secureCookie, type Verdict } from './auth.ts'
@@ -69,6 +69,27 @@ layer(Auth.layer.pipe(Layer.provideMerge(passwordDir)), { excludeTestServices: t
         expect(yield* auth.verifySession(`${Number(expiry) + 1}.${signature}`)).toBe(false)
         expect(yield* auth.verifySession(`${expiry}.${signature?.slice(1)}`)).toBe(false)
         expect(yield* auth.verifySession('garbage')).toBe(false)
+      })
+    )
+
+    it.effect('logs every browser out, for good', () =>
+      Effect.gen(function* () {
+        const auth = yield* Auth
+        const before = yield* auth.issueSession
+        yield* auth.logout
+        yield* Effect.sleep('5 millis')
+        const after = yield* auth.issueSession
+        expect(yield* auth.verifySession(before.value)).toBe(false)
+        expect(yield* auth.verifySession(after.value)).toBe(true)
+        // Kept across a restart, 0600
+        const again = (value: string) =>
+          Auth.use((fresh) => fresh.verifySession(value)).pipe(Effect.provide(Auth.layer))
+        expect(yield* again(before.value)).toBe(false)
+        expect(yield* again(after.value)).toBe(true)
+        const { PASSWORD_PATH } = yield* Config.all({
+          PASSWORD_PATH: Config.String('PASSWORD_PATH'),
+        })
+        expect(statSync(join(dirname(PASSWORD_PATH), 'logged-out')).mode & 0o777).toBe(0o600)
       })
     )
 

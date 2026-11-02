@@ -79,6 +79,18 @@ layer(withTimeout(Reader.layer), { excludeTestServices: true })('Reader', (it) =
     })
   )
 
+  it.effect('refuses a huge value or a huge answer', () =>
+    Effect.gen(function* () {
+      expect(yield* failure('SELECT zeroblob(100000000) AS b')).toMatch(/too big/u)
+      expect(
+        yield* failure(
+          `WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 20)
+           SELECT hex(zeroblob(1000000)) AS h FROM n`
+        )
+      ).toBe('The result is over 16 MB: select fewer rows or columns.')
+    })
+  )
+
   it.effect('lists the tables and views', () =>
     Effect.gen(function* () {
       const reader = yield* Reader

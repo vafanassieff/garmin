@@ -111,14 +111,25 @@ export class GarminSession extends Context.Service<
             const now = new Date(yield* Clock.currentTimeMillis)
             const rejected = options?.rejected === saved.value.di_token
             if (!rejected && !expiresSoon(saved.value, now)) return saved.value.di_token
-            const fresh = yield* refresh(saved.value).pipe(
+            const refused = yield* refresh(saved.value).pipe(
               Effect.provideService(HttpClient.HttpClient, http),
-              Effect.mapError((error) =>
-                error._tag === 'NotLoggedIn'
-                  ? new NotLoggedIn({ message: `${error.message}: ${LOGIN_HINT}` })
-                  : error
-              )
+              Effect.map((fresh) => ({ fresh })),
+              Effect.catchTag('NotLoggedIn', (error) => Effect.succeed({ error }))
             )
+            if ('error' in refused) {
+              // Another process (a CLI's sync beside the app) may have refreshed the same token
+              // first, Garmin then refusing it here: its new session is in the file
+              const now = yield* load
+              if (
+                Option.isSome(now) &&
+                now.value.di_refresh_token !== saved.value.di_refresh_token &&
+                !expiresSoon(now.value, new Date(yield* Clock.currentTimeMillis))
+              ) {
+                return now.value.di_token
+              }
+              return yield* new NotLoggedIn({ message: `${refused.error.message}: ${LOGIN_HINT}` })
+            }
+            const { fresh } = refused
             yield* save(fresh, saved.value.account ?? null)
             yield* Effect.logInfo(
               `Garmin session refreshed, valid until ${expiresAt(fresh.di_token)?.toISOString() ?? '?'}`

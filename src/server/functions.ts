@@ -1,14 +1,29 @@
 import { createServerFn } from '@tanstack/react-start'
-import { Effect } from 'effect'
+import { Effect, type Layer } from 'effect'
 
 import { explain, GarminLogin } from '../garmin/login.ts'
 import { GarminSync } from '../garmin/sync.ts'
 import { Stats } from '../stats.ts'
 
-import { runtime } from './runtime.ts'
+import { type layer, runtime } from './runtime.ts'
 
 // The web pages' calls to the app, behind the web session (see auth.ts). Their handlers only run
 // on the server: the client bundle gets a fetch in their place, without these imports.
+
+// An error for the browser: its message only, without the stack (the server's paths) the
+// serializer would send along
+const bare = (message: string) => {
+  const error = new Error(message)
+  delete error.stack
+  return error
+}
+
+// Runs a page's call: a failure is logged here and reaches the browser bare, without its cause
+// (the database's own error)
+const run = <A, E>(effect: Effect.Effect<A, E, Layer.Success<typeof layer>>) =>
+  runtime.runPromise(effect.pipe(Effect.tapCause(Effect.logError))).catch(() => {
+    throw bare('The server could not answer.')
+  })
 
 export interface SyncRunView {
   readonly started_at: string
@@ -56,15 +71,13 @@ const garminView = Effect.gen(function* () {
   } satisfies GarminView
 })
 
-export const getGarmin = createServerFn({ method: 'GET' }).handler(() =>
-  runtime.runPromise(garminView)
-)
+export const getGarmin = createServerFn({ method: 'GET' }).handler(() => run(garminView))
 
 export const getDashboard = createServerFn({ method: 'GET' }).handler(() =>
-  runtime.runPromise(
+  run(
     Effect.gen(function* () {
       const stats = yield* Stats
-      return { dashboard: yield* stats.dashboard.pipe(Effect.orDie), garmin: yield* garminView }
+      return { dashboard: yield* stats.dashboard, garmin: yield* garminView }
     })
   )
 )
@@ -77,7 +90,7 @@ export type LoginAnswer =
 const string = (input: unknown, key: string, max = 512) => {
   const value =
     typeof input === 'object' && input !== null ? (input as Record<string, unknown>)[key] : null
-  if (typeof value !== 'string' || value.length > max) throw new Error(`${key}: a string`)
+  if (typeof value !== 'string' || value.length > max) throw bare(`${key}: a string`)
   return value
 }
 
@@ -87,7 +100,7 @@ export const garminLogin = createServerFn({ method: 'POST' })
     password: string(input, 'password'),
   }))
   .handler(({ data }) =>
-    runtime.runPromise(
+    run(
       GarminLogin.use((login) => login.start(data)).pipe(
         Effect.map((step): LoginAnswer =>
           step._tag === 'LoggedIn'
@@ -107,7 +120,7 @@ export const garminLogin = createServerFn({ method: 'POST' })
 export const garminMfa = createServerFn({ method: 'POST' })
   .validator((input: unknown) => ({ id: string(input, 'id', 64), code: string(input, 'code', 16) }))
   .handler(({ data }) =>
-    runtime.runPromise(
+    run(
       GarminLogin.use((login) => login.mfa(data.id, data.code)).pipe(
         Effect.map((account): LoginAnswer => ({
           status: 'logged_in',
@@ -121,16 +134,16 @@ export const garminMfa = createServerFn({ method: 'POST' })
   )
 
 export const garminLogout = createServerFn({ method: 'POST' }).handler(() =>
-  runtime.runPromise(GarminLogin.use((login) => login.logout).pipe(Effect.orDie))
+  run(GarminLogin.use((login) => login.logout))
 )
 
 export const garminSyncNow = createServerFn({ method: 'POST' }).handler(() =>
-  runtime.runPromise(GarminSync.use((sync) => sync.trigger))
+  run(GarminSync.use((sync) => sync.trigger))
 )
 
 // The whole history, from the oldest activity: in the background, resumed until it completes
 export const garminBackfill = createServerFn({ method: 'POST' }).handler(() =>
-  runtime.runPromise(GarminSync.use((sync) => Effect.orDie(sync.backfill)))
+  run(GarminSync.use((sync) => sync.backfill))
 )
 
 const field = (input: unknown, name: string) =>
@@ -142,9 +155,7 @@ export const getRuns = createServerFn({ method: 'GET' })
   .validator((input: unknown) => ({
     span: RUNS_SPANS.find((span) => span === field(input, 'span')) ?? 26,
   }))
-  .handler(({ data }) =>
-    runtime.runPromise(Stats.use((stats) => stats.runs(data.span)).pipe(Effect.orDie))
-  )
+  .handler(({ data }) => run(Stats.use((stats) => stats.runs(data.span))))
 
 // Every activity, of one sport when asked (a Connect type: letters and underscores)
 export const getActivities = createServerFn({ method: 'GET' })
@@ -154,22 +165,18 @@ export const getActivities = createServerFn({ method: 'GET' })
       sport: typeof sport === 'string' && /^[a-z_]{1,40}$/u.test(sport) ? sport : null,
     }
   })
-  .handler(({ data }) =>
-    runtime.runPromise(Stats.use((stats) => stats.activities(data.sport)).pipe(Effect.orDie))
-  )
+  .handler(({ data }) => run(Stats.use((stats) => stats.activities(data.sport))))
 
 export const getActivity = createServerFn({ method: 'GET' })
   .validator((input: unknown) => {
     const id =
       typeof input === 'object' && input !== null ? (input as Record<string, unknown>)['id'] : null
     if (typeof id !== 'number' || !Number.isSafeInteger(id) || id <= 0) {
-      throw new Error('id: a positive integer')
+      throw bare('id: a positive integer')
     }
     return { id }
   })
-  .handler(({ data }) =>
-    runtime.runPromise(Stats.use((stats) => stats.activity(data.id)).pipe(Effect.orDie))
-  )
+  .handler(({ data }) => run(Stats.use((stats) => stats.activity(data.id))))
 
 export const SLEEP_PERIODS = [30, 90, 365, 'all'] as const
 
@@ -178,6 +185,4 @@ export const getSleep = createServerFn({ method: 'GET' })
     const days = field(input, 'days')
     return { days: SLEEP_PERIODS.find((period) => period === days) ?? 30 }
   })
-  .handler(({ data }) =>
-    runtime.runPromise(Stats.use((stats) => stats.sleep(data.days)).pipe(Effect.orDie))
-  )
+  .handler(({ data }) => run(Stats.use((stats) => stats.sleep(data.days))))

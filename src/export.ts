@@ -47,12 +47,14 @@ type Entry = {
   readonly name: string
   // In memory: a JSON or FIT file, refused past MAX_IN_MEMORY (a zip bomb)
   readonly read: () => Promise<Buffer>
-  // Streamed to a file: the inner zips of uploads
+  // Streamed to a file, refused past MAX_ON_DISK: the inner zips of uploads
   readonly saveTo: (path: string) => Promise<void>
 }
 
 // The biggest summaries file of an export is a few MB, a FIT file a few
 const MAX_IN_MEMORY = 256 * 1024 * 1024
+// An inner zip of uploads is a few GB at most: past that it would only fill the disk
+const MAX_ON_DISK = 8 * 1024 * 1024 * 1024
 
 const openZip = promisify<string, yauzl.Options, yauzl.ZipFile>(yauzl.open)
 
@@ -87,7 +89,12 @@ async function* entries(path: string): AsyncGenerator<Entry> {
           }
           return Buffer.concat(await (await openStream(current)).toArray())
         },
-        saveTo: async (path) => pipeline(await openStream(current), createWriteStream(path)),
+        saveTo: async (path) => {
+          if (current.uncompressedSize > MAX_ON_DISK) {
+            throw new Error(`${current.fileName}: ${current.uncompressedSize} bytes, too big`)
+          }
+          return pipeline(await openStream(current), createWriteStream(path))
+        },
       }
     }
   } finally {
