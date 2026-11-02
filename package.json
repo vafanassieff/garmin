@@ -1,0 +1,71 @@
+{
+  "name": "garmin",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "type": "module",
+  "imports": {
+    "#src/*": "./src/*"
+  },
+  "scripts": {
+    "backfill": "node src/export.ts",
+    "build": "vite build",
+    "check": "./scripts/check.sh",
+    "db:generate": "drizzle-kit generate --name",
+    "dev": "vite dev",
+    "fix": "oxfmt . && oxlint --quiet --type-aware --fix --fix-dangerously --fix-suggestions",
+    "format": "oxfmt --check",
+    "garmin": "node src/garmin/cli.ts",
+    "ingest": "node src/ingest.ts",
+    "lint": "oxlint --quiet --type-aware",
+    "start": "node .output/server/index.mjs",
+    "test": "vitest run",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@effect/platform-node": "4.1.0",
+    "@garmin/fitsdk": "21.213.0",
+    "drizzle-orm": "1.0.0-rc.5-5935859",
+    "effect": "4.1.0",
+    "yauzl": "3.4.0"
+  },
+  "devDependencies": {
+    "@effect/vitest": "4.1.0",
+    "@tanstack/react-router": "1.170.46",
+    "@tanstack/react-start": "1.169.4",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@types/yauzl": "3.4.0",
+    "@types/yazl": "3.3.1",
+    "@vitejs/plugin-react": "6.1.2",
+    "drizzle-kit": "1.0.0-rc.5-5935859",
+    "nitro": "3.0.260903-beta",
+    "oxfmt": "0.75.0",
+    "oxlint": "1.90.0",
+    "oxlint-tsgolint": "7.0.2005",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "typescript": "7.0.2",
+    "vite": "8.3.5",
+    "vitest": "5.0.5",
+    "yazl": "3.3.1"
+  },
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "12.16.1",
+      "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": "26.13.0",
+      "onFail": "download"
+    }
+  },
+  "engines": {
+    "node": ">=26.13.0",
+    "pnpm": ">=12"
+  },
+  "packageManager": "pnpm@12.16.1"
+}

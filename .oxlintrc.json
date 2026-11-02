@@ -1,0 +1,129 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["unicorn", "jsdoc", "import", "oxc", "promise"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "warn",
+    "style": "off"
+  },
+  "ignorePatterns": ["node_modules", "dist", "**/.output", "**/tree.gen.ts", ".claude", "data"],
+  "rules": {
+    "jsdoc/require-returns": "off",
+    "jsdoc/require-param": "off",
+    "jsdoc/require-param-type": "off",
+    "jsdoc/require-returns-type": "off",
+    "jsdoc/require-param-description": "off",
+    "jsdoc/require-throws-type": "off",
+    "jsdoc/check-tag-names": "off",
+    "unicorn/no-thenable": "off",
+    "unicorn/no-nested-ternary": "off",
+    "unicorn/no-null": "off",
+    "unicorn/number-literal-case": "off",
+    "unicorn/prefer-event-target": "off",
+    "unicorn/prefer-logical-operator-over-ternary": "off",
+    "unicorn/no-useless-undefined": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/prefer-math-trunc": "off",
+    "unicorn/prefer-native-coercion-functions": "off",
+    "unicorn/prefer-number-coercion": "off",
+    "eslint/max-lines-per-function": "off",
+    "eslint/max-lines": "off",
+    "eslint/max-depth": "off",
+    "eslint/no-inline-comments": "off",
+    "eslint/require-await": "off",
+    "eslint/no-promise-executor-return": "off",
+    "eslint/max-classes-per-file": "off",
+    "eslint/radix": "off",
+    "eslint/no-await-in-loop": "off",
+    "eslint/no-underscore-dangle": "off",
+    "eslint/no-warning-comments": "off",
+    "no-empty-pattern": "off",
+    "eslint/no-unused-vars": [
+      "error",
+      {
+        "args": "all",
+        "argsIgnorePattern": "^_",
+        "caughtErrors": "all",
+        "caughtErrorsIgnorePattern": "^_",
+        "destructuredArrayIgnorePattern": "^_",
+        "varsIgnorePattern": "^_",
+        "ignoreRestSiblings": true
+      }
+    ],
+    "eslint/no-console": [
+      "error",
+      {
+        "allow": ["info", "warn", "error"]
+      }
+    ],
+    "eslint/no-shadow": "off",
+    "eslint/no-unmodified-loop-condition": "off",
+    "import/max-dependencies": "off",
+    "import/no-unassigned-import": "off"
+  },
+  "overrides": [
+    {
+      "files": ["**/*.ts", "**/*.tsx"],
+      "plugins": ["typescript"],
+      "env": {
+        "builtin": true
+      },
+      "rules": {
+        "typescript/no-unnecessary-type-parameters": "off",
+        "typescript/no-unsafe-assignment": "warn",
+        "typescript/no-confusing-void-expression": [
+          "error",
+          {
+            "ignoreArrowShorthand": true
+          }
+        ],
+        "typescript/no-misused-promises": [
+          "error",
+          {
+            "checksVoidReturn": false
+          }
+        ],
+        "typescript/strict-boolean-expressions": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/switch-exhaustiveness-check": "off",
+        "typescript/no-dynamic-delete": "error",
+        "typescript/no-empty-object-type": "error",
+        "typescript/no-explicit-any": "error",
+        "typescript/no-namespace": "error",
+        "typescript/no-non-null-asserted-nullish-coalescing": "error",
+        "typescript/no-non-null-assertion": "error",
+        "typescript/no-require-imports": "error",
+        "typescript/only-throw-error": [
+          "error",
+          {
+            "allow": [
+              {
+                "from": "package",
+                "package": "@tanstack/router-core",
+                "name": ["Redirect", "NotFoundError"]
+              }
+            ]
+          }
+        ],
+        "typescript/no-unnecessary-condition": "error",
+        "typescript/prefer-literal-enum-member": "error",
+        "typescript/prefer-reduce-type-parameter": "error",
+        "typescript/prefer-return-this-type": "error",
+        "typescript/use-unknown-in-catch-callback-variable": "error",
+        "typescript/consistent-return": "off",
+        "typescript/prefer-readonly-parameter-types": "off",
+        "typescript/strict-void-return": "off",
+        "typescript/no-empty-interface": "off"
+      }
+    },
+    {
+      "files": ["**/*.test.ts"],
+      "plugins": ["typescript"],
+      "rules": {
+        "typescript/no-floating-promises": "off"
+      }
+    }
+  ]
+}

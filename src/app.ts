@@ -1,0 +1,41 @@
+import * as NodeServices from '@effect/platform-node/NodeServices'
+import { Layer } from 'effect'
+import { FetchHttpClient } from 'effect/http'
+
+import { Auth } from './auth.ts'
+import { Database } from './db.ts'
+import { GarminApi } from './garmin/api.ts'
+import { GarminLogin } from './garmin/login.ts'
+import { GarminSession } from './garmin/session.ts'
+import { GarminSync } from './garmin/sync.ts'
+import { Routes } from './http.ts'
+import { Ingest } from './ingest.ts'
+import { Mcp } from './mcp.ts'
+import { Reader } from './reader.ts'
+import { Stats } from './stats.ts'
+import { Tools } from './tools.ts'
+
+// The Garmin account: its session (a file of its own), the API, the sync into data/ and SQLite,
+// the login (web and CLI)
+export const Garmin = GarminLogin.layer.pipe(
+  Layer.provideMerge(GarminSync.layer),
+  Layer.provideMerge(GarminApi.layer),
+  Layer.provideMerge(GarminSession.layer),
+  Layer.provideMerge(FetchHttpClient.layer)
+)
+
+// SQLite (migrated), the ingest of data/, Garmin, the MCP's and the web pages' queries, the
+// password
+export const Services = Layer.mergeAll(Reader.layer, Tools.layer, Stats.layer).pipe(
+  Layer.provideMerge(Garmin),
+  Layer.provideMerge(Ingest.layer),
+  Layer.provideMerge(Database.layer),
+  Layer.provideMerge(Layer.merge(NodeServices.layer, Auth.layer))
+)
+
+// The Effect HTTP routes (MCP, health), mounted under the web app (see routes/)
+export const Endpoints = Layer.mergeAll(Routes, Mcp)
+
+// The background jobs: the Garmin sync every 3 hours (it ingests what it wrote), and the ingest of
+// data/ every 5 minutes for what lands there otherwise (an export's backfill)
+export const Jobs = Layer.mergeAll(GarminSync.scheduler, Ingest.scheduler)
