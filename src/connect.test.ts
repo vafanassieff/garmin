@@ -207,15 +207,15 @@ it("describes a calendar's workouts step by step", () => {
   }
   const calendar = {
     calendarItems: [
-      { id: 1, itemType: 'workout', title: workout.workoutName, date: '2026-11-05', workoutId: 7 },
-      { id: 2, itemType: 'nap', date: '2026-11-05' },
+      { id: 1, itemType: 'workout', title: workout.workoutName, date: '2026-11-04', workoutId: 7 },
+      { id: 2, itemType: 'nap', date: '2026-11-04' },
       { id: null, itemType: 'weight' },
     ],
   }
   expect(plannedFromCalendar(calendar, (id) => (id === 7 ? workout : undefined))).toEqual([
     {
       id: 1,
-      day: '2026-11-05',
+      day: '2026-11-04',
       workout_id: 7,
       name: "Tempo 3x10'",
       sport: 'running',
