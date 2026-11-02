@@ -18,7 +18,7 @@ import { GarminSync } from './sync.ts'
 //   node src/garmin/cli.ts login                    email, password, MFA code; saves the session
 //   node src/garmin/cli.ts status                   which account, until when
 //   node src/garmin/cli.ts logout                   forgets the session
-//   node src/garmin/cli.ts sync [--since YYYY-MM-DD]
+//   node src/garmin/cli.ts sync [--since YYYY-MM-DD|all]   all: the whole history, paced
 // (`pnpm garmin <command>`; in the container: docker exec -it <container> node src/garmin/cli.ts login)
 
 const fail = (message: string) =>
@@ -90,11 +90,14 @@ const sync = Command.make(
   'sync',
   {
     since: Flag.String('since').pipe(
-      Flag.withDescription('YYYY-MM-DD: fetch again from this day'),
+      Flag.withDescription('YYYY-MM-DD: fetch again from this day; all: the whole history'),
       Flag.optional
     ),
   },
   Effect.fn(function* ({ since }) {
+    if (Option.isSome(since) && !/^(\d{4}-\d{2}-\d{2}|all)$/u.test(since.value)) {
+      return yield* fail('--since takes a day (YYYY-MM-DD) or all')
+    }
     const outcome = yield* GarminSync.use((service) =>
       service.run(Option.isSome(since) ? { since: since.value } : {})
     )

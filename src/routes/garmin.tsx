@@ -5,6 +5,7 @@ import {
   garminLogin,
   garminLogout,
   garminMfa,
+  garminBackfill,
   garminSyncNow,
   getGarmin,
   type LoginAnswer,
@@ -157,7 +158,7 @@ function GarminPage() {
   const router = useRouter()
   const [busy, setBusy] = useState(false)
   const refresh = () => router.invalidate()
-  const { session, runs, syncing } = view
+  const { session, runs, syncing, backfilling } = view
   const last = runs.find((run) => run.finished_at !== null)
   const refused = session.logged_in && last?.logged_out === true
   const [relogin, setRelogin] = useState(false)
@@ -225,6 +226,15 @@ function GarminPage() {
                       {syncing ? 'en cours…' : `dernière le ${when(last?.finished_at ?? null)}`}
                     </td>
                   </tr>
+                  {backfilling ? (
+                    <tr>
+                      <td className="muted">Historique complet</td>
+                      <td>
+                        en cours, depuis la plus ancienne activité, une requête par seconde ; si
+                        Garmin limite, il reprend tout seul une demi-heure plus tard
+                      </td>
+                    </tr>
+                  ) : null}
                 </tbody>
               </table>
               <div className="row" style={{ marginTop: 12 }}>
@@ -240,6 +250,19 @@ function GarminPage() {
                   }}
                 >
                   {syncing ? 'Synchro en cours…' : 'Synchroniser maintenant'}
+                </button>
+                <button
+                  className="secondary"
+                  disabled={busy || backfilling}
+                  onClick={() => {
+                    setBusy(true)
+                    void garminBackfill()
+                      .then(() => new Promise((resolve) => setTimeout(resolve, 800)))
+                      .then(refresh)
+                      .finally(() => setBusy(false))
+                  }}
+                >
+                  {backfilling ? 'Historique en cours…' : "Récupérer tout l'historique"}
                 </button>
                 <button className="secondary" onClick={() => setRelogin((v) => !v)}>
                   Changer de compte

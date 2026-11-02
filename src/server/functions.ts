@@ -30,6 +30,8 @@ export interface GarminView {
     readonly refreshable: boolean
   }
   readonly syncing: boolean
+  // The whole history asked and not fetched yet (see sync.ts)
+  readonly backfilling: boolean
   readonly runs: ReadonlyArray<SyncRunView>
 }
 
@@ -40,6 +42,7 @@ const garminView = Effect.gen(function* () {
   return {
     session: yield* login.status,
     syncing: yield* sync.running,
+    backfilling: yield* sync.backfilling,
     runs: runs.map((run) => ({
       started_at: run.started_at,
       finished_at: run.finished_at,
@@ -123,6 +126,11 @@ export const garminLogout = createServerFn({ method: 'POST' }).handler(() =>
 
 export const garminSyncNow = createServerFn({ method: 'POST' }).handler(() =>
   runtime.runPromise(GarminSync.use((sync) => sync.trigger))
+)
+
+// The whole history, from the oldest activity: in the background, resumed until it completes
+export const garminBackfill = createServerFn({ method: 'POST' }).handler(() =>
+  runtime.runPromise(GarminSync.use((sync) => Effect.orDie(sync.backfill)))
 )
 
 export const getRuns = createServerFn({ method: 'GET' }).handler(() =>

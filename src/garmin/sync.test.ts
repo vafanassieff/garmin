@@ -1,11 +1,20 @@
-import { statSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 
 import * as NodeServices from '@effect/platform-node/NodeServices'
 import { expect, layer } from '@effect/vitest'
 import { Effect, Layer, Option } from 'effect'
 import yazl from 'yazl'
 
-import { apiSummary, dailyFile, fitRun, rows, sql, testConfig } from '../../test/fixtures.ts'
+import {
+  apiSummary,
+  dailyFile,
+  dataDir,
+  fitRun,
+  rows,
+  sql,
+  testConfig,
+} from '../../test/fixtures.ts'
 import { fakeGarmin, inHours, json, jwt, type FakeRequest } from '../../test/garmin.ts'
 import { Database } from '../db.ts'
 import { Ingest } from '../ingest.ts'
@@ -13,7 +22,7 @@ import { parisToday } from '../tools.ts'
 
 import { GarminApi } from './api.ts'
 import { GarminSession } from './session.ts'
-import { addDays, fitOfZip, monthEnd, months, GarminSync } from './sync.ts'
+import { addDays, ALL, fitOfZip, monthEnd, months, GarminSync } from './sync.ts'
 
 const zipOf = (name: string, bytes: Uint8Array) =>
   new Promise<Uint8Array>((resolve, reject) => {
@@ -212,6 +221,62 @@ layer(refused.layer, { excludeTestServices: true })('GarminSync, logged out', (i
       expect(outcome.error).toContain('log in again')
       expect(yield* rows(sql`SELECT ok, logged_out FROM sync_runs`)).toEqual([
         { ok: 0, logged_out: 1 },
+      ])
+    })
+  )
+})
+
+// The whole history: two runs, today and 3 days back; yesterday's HRV fails
+const history = (request: FakeRequest): Promise<Response> => {
+  const { url } = request
+  const path = url.pathname
+  const oldest = addDays(today, -3)
+  if (path === '/userprofile-service/socialProfile') {
+    return Promise.resolve(json({ displayName: 'runner-1', fullName: 'Test Runner' }))
+  }
+  if (path === '/activitylist-service/activities/search/activities') {
+    return Promise.resolve(
+      json(
+        url.searchParams.get('start') === '0'
+          ? [
+              apiSummary(42, { startTimeLocal: `${today} 07:12:40` }),
+              apiSummary(41, { startTimeLocal: `${oldest} 07:12:40` }),
+            ]
+          : []
+      )
+    )
+  }
+  if (path === `/hrv-service/hrv/${addDays(today, -1)}`) {
+    return Promise.resolve(new Response('bad request', { status: 400 }))
+  }
+  if (path.startsWith('/download-service/'))
+    return Promise.resolve(new Response(null, { status: 404 }))
+  if (path.startsWith('/calendar-service/')) return Promise.resolve(json({ calendarItems: [] }))
+  return Promise.resolve(json(null))
+}
+
+const whole = garminLayer(history)
+
+layer(whole.layer, { excludeTestServices: true })('GarminSync, the whole history', (it) => {
+  it.effect('starts at the oldest activity, leaves a failed day to fetch again', () =>
+    Effect.gen(function* () {
+      yield* prepare
+      yield* saveSession
+      const sync = yield* GarminSync
+      expect(yield* sync.backfilling).toBe(false)
+      yield* sync.backfill
+      expect(yield* sync.backfilling).toBe(true)
+      const outcome = yield* sync.run({ since: ALL })
+      expect(outcome).toMatchObject({ ok: true, since: addDays(today, -3) })
+      expect(outcome.warnings).toEqual([expect.stringContaining(`hrv ${addDays(today, -1)}`)])
+      const root = yield* dataDir
+      const written = (day: string) =>
+        existsSync(join(root, 'connect/daily', day.slice(0, 4), `${day}.json`))
+      expect([-3, -2, -1, 0].map((days) => written(addDays(today, days)))).toEqual([
+        true,
+        true,
+        false,
+        true,
       ])
     })
   )

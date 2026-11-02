@@ -35,14 +35,25 @@ import { type Account, GarminSession } from './session.ts'
 //   connect/body/YYYY-MM.json              weigh-ins
 //   connect/calendar/YYYY-MM.json          scheduled workouts, and connect/workouts/<id>.json
 //
-// Without `since`: from two days before the newest day already in data/, else 14 days back. One
-// failing call is a warning (the rest goes on); a refused session or a rate limit stops the run.
+// Without `since`: from two days before the newest day already in data/, else 14 days back. With
+// `since: 'all'`: the whole history, from the account's oldest activity. One failing call is a
+// warning (the rest goes on, and a day with one is not written, to be fetched again); a refused
+// session or a rate limit stops the run.
+//
+// The whole history (asked on /garmin) is a backfill: a second between days and downloads, files
+// already there skipped, and resumed by the loop until one completes (after a rate limit, half an
+// hour later). DATA_DIR/.backfill marks it pending.
 
 // Days fetched again: Garmin still fills them (sleep, HRV, renamed activities)
 const FRESH_DAYS = 3
 const ACTIVITY_FRESH_DAYS = 14
 const DEFAULT_BACK_DAYS = 14
 const PAGE = 100
+export const ALL = 'all'
+// Past a month of days, the run paces itself
+const BACKFILL_DAYS = 31
+const BACKFILL_PAUSE = '1 second'
+const BACKFILL_MARKER = '.backfill'
 
 export interface SyncOutcome {
   readonly ok: boolean
@@ -136,9 +147,12 @@ const accountName = (account: Account) => account.full_name ?? account.display_n
 export class GarminSync extends Context.Service<
   GarminSync,
   {
-    // One sync (one at a time: a second waits for the first)
+    // One sync (one at a time: a second waits for the first); `since`: a day, or ALL
     readonly run: (options?: { readonly since?: string }) => Effect.Effect<SyncOutcome>
     readonly running: Effect.Effect<boolean>
+    // Asks for the whole history: the loop fetches it now, and resumes it until it completes
+    readonly backfill: Effect.Effect<void, GarminError>
+    readonly backfilling: Effect.Effect<boolean>
     // Wakes the background loop now (after a login, or "sync now")
     readonly trigger: Effect.Effect<void>
     readonly recent: (limit: number) => Effect.Effect<ReadonlyArray<SyncRun>, DatabaseError>
@@ -179,6 +193,33 @@ export class GarminSync extends Context.Service<
             }).pipe(
               Effect.mapError((error) => new GarminError({ message: `${path}: ${error.message}` }))
             )
+          // The day of the account's oldest activity (the activity list, to its end), else the
+          // default span
+          const oldestActivityDay = (today: string) =>
+            Effect.gen(function* () {
+              let oldest: string | undefined
+              for (let offset = 0; ; offset += PAGE) {
+                const items = yield* api.json(
+                  '/activitylist-service/activities/search/activities',
+                  {
+                    start: offset,
+                    limit: PAGE,
+                  }
+                )
+                const list = Array.isArray(items) ? items : []
+                for (const raw of list) {
+                  const day = Option.getOrUndefined(decodeActivity(raw))?.startTimeLocal.slice(
+                    0,
+                    10
+                  )
+                  if (day !== undefined && /^\d{4}-\d{2}-\d{2}$/u.test(day)) {
+                    oldest = oldest === undefined ? day : min(oldest, day)
+                  }
+                }
+                if (list.length < PAGE) break
+              }
+              return oldest ?? addDays(today, -DEFAULT_BACK_DAYS)
+            })
           // One call: null and a warning when it fails, so one endpoint never stops the run
           const call = <A>(what: string, effect: Effect.Effect<A, ApiFailure>) =>
             effect.pipe(
@@ -199,11 +240,16 @@ export class GarminSync extends Context.Service<
           const name = encodeURIComponent(account.display_name)
           const today = yield* parisToday
           const start =
-            since ??
-            Option.match(yield* newestDay, {
-              onNone: () => addDays(today, -DEFAULT_BACK_DAYS),
-              onSome: (day) => min(addDays(day, -(FRESH_DAYS - 1)), today),
-            })
+            since === ALL
+              ? yield* oldestActivityDay(today)
+              : (since ??
+                Option.match(yield* newestDay, {
+                  onNone: () => addDays(today, -DEFAULT_BACK_DAYS),
+                  onSome: (day) => min(addDays(day, -(FRESH_DAYS - 1)), today),
+                }))
+          // Gentle on Garmin over a long span
+          const pause =
+            daysBetween(start, today) > BACKFILL_DAYS ? Effect.sleep(BACKFILL_PAUSE) : Effect.void
           yield* Effect.logInfo(`syncing ${accountName(account)} from ${start}`)
 
           // Activities, newest first, until one starts before `start`
@@ -236,6 +282,7 @@ export class GarminSync extends Context.Service<
                   `FIT of ${id}`,
                   api.bytes(`/download-service/files/activity/${id}`)
                 )
+                yield* pause
                 if (zip !== null) {
                   const bytes = yield* fitOfZip(zip).pipe(
                     Effect.catchTag('GarminError', (error) => {
@@ -255,6 +302,7 @@ export class GarminSync extends Context.Service<
                   `gear of ${id}`,
                   api.json('/gear-service/gear/filterGear', { activityId: id })
                 )
+                yield* pause
                 yield* write(summary, { ...record(raw), gear: gear ?? [] })
               }
             }
@@ -279,6 +327,7 @@ export class GarminSync extends Context.Service<
           for (let day = start; day <= today; day = addDays(day, 1)) {
             const path = `connect/daily/${day.slice(0, 4)}/${day}.json`
             if ((yield* exists(path)) && daysBetween(day, today) >= FRESH_DAYS) continue
+            const failedBefore = warnings.length
             const fetched = yield* Effect.all(
               {
                 stats: call(
@@ -308,6 +357,9 @@ export class GarminSync extends Context.Service<
               },
               { concurrency: 3 }
             )
+            yield* pause
+            // A call failed: not written, so the next run (or backfill) fetches the day again
+            if (warnings.length > failedBefore) continue
             yield* write(path, {
               date: day,
               fetched_at: yield* now,
@@ -468,6 +520,16 @@ export class GarminSync extends Context.Service<
           )
         )
 
+      const marker = join(dataDir, BACKFILL_MARKER)
+      const backfilling = fs.exists(marker).pipe(Effect.orElseSucceed(() => false))
+      const backfill = Effect.gen(function* () {
+        yield* fs.makeDirectory(dataDir, { recursive: true })
+        yield* fs.writeFileString(marker, `${yield* now}\n`)
+        yield* Queue.offer(wake, undefined)
+      }).pipe(
+        Effect.mapError((error) => new GarminError({ message: `the backfill: ${error.message}` }))
+      )
+
       const recent = (limit: number) =>
         use((db) => db.select().from(syncRuns).orderBy(desc(syncRuns.id)).limit(limit).all())
 
@@ -483,19 +545,30 @@ export class GarminSync extends Context.Service<
             yield* waitFor('1 minute')
             continue
           }
-          const outcome = yield* run()
+          const pending = yield* backfilling
+          const outcome = yield* run(pending ? { since: ALL } : undefined)
+          // The whole history fetched: done; else (a rate limit) resumed in half an hour
+          if (pending && outcome.ok) yield* fs.remove(marker).pipe(Effect.ignore)
           // As saved after the run: a refresh during it may have saved it again
           const after = yield* session.load
           refused = outcome.logged_out
             ? Option.getOrUndefined(Option.map(after, (s) => s.saved_at))
             : undefined
-          yield* waitFor(outcome.logged_out ? '1 minute' : `${everyHours * 60} minutes`)
+          yield* waitFor(
+            outcome.logged_out
+              ? '1 minute'
+              : pending && !outcome.ok
+                ? '30 minutes'
+                : `${everyHours * 60} minutes`
+          )
         }
       })
 
       return GarminSync.of({
         run,
         running: Ref.get(busy),
+        backfill,
+        backfilling,
         trigger: Queue.offer(wake, undefined).pipe(Effect.asVoid),
         recent,
         loop,
