@@ -224,8 +224,10 @@ export class Auth extends Context.Service<
         issueSession,
         verifySession: (value) =>
           Effect.map(Clock.currentTimeMillis, (now) => {
-            const [expiry, signature] = value.split('.')
+            const parts = value.split('.')
+            const [expiry, signature] = parts
             if (
+              parts.length !== 2 ||
               sessionKey === undefined ||
               expiry === undefined ||
               signature === undefined ||

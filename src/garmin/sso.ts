@@ -143,6 +143,13 @@ const transport =
     new GarminError({ message: `${what}: ${error.message}` })
 
 // The SSO's JSON answer: a rate limit, a challenge or a page that is not JSON fail here
+// A request's answer within 30 seconds: a stalled one would hold the sync's lock for good
+const inTime = (what: string) =>
+  Effect.timeoutOrElse({
+    duration: '30 seconds',
+    orElse: () => Effect.fail(new GarminError({ message: `${what}: no answer in 30 s` })),
+  })
+
 const ssoJson = (what: string, response: HttpClientResponse.HttpClientResponse) =>
   Effect.gen(function* () {
     if (response.status === 429) {
@@ -230,7 +237,7 @@ export const exchangeTicket = (ticket: string, flow: Flow) =>
             })
           )
         )
-        .pipe(Effect.mapError(transport('token exchange')))
+        .pipe(Effect.mapError(transport('token exchange')), inTime('token exchange'))
       if (response.status === 429) {
         return yield* new RateLimited({ message: 'token exchange: Garmin is rate limiting' })
       }
@@ -313,7 +320,7 @@ const loginWith = (flow: Flow, email: string, password: string, portalDelay: Dur
             })
           )
         )
-        .pipe(Effect.mapError(transport('sign-in page')))
+        .pipe(Effect.mapError(transport('sign-in page')), inTime('sign-in page'))
       if (page.status === 429) {
         return yield* new RateLimited({ message: 'sign-in page: Garmin is rate limiting' })
       }
@@ -422,7 +429,7 @@ export const refresh = (tokens: Tokens) =>
           })
         )
       )
-      .pipe(Effect.mapError(transport('token refresh')))
+      .pipe(Effect.mapError(transport('token refresh')), inTime('token refresh'))
     if (response.status === 429) {
       return yield* new RateLimited({ message: 'token refresh: Garmin is rate limiting' })
     }

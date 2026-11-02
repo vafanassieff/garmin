@@ -69,6 +69,7 @@ layer(Auth.layer.pipe(Layer.provideMerge(passwordDir)), { excludeTestServices: t
         expect(yield* auth.verifySession(`${Number(expiry) + 1}.${signature}`)).toBe(false)
         expect(yield* auth.verifySession(`${expiry}.${signature?.slice(1)}`)).toBe(false)
         expect(yield* auth.verifySession('garbage')).toBe(false)
+        expect(yield* auth.verifySession(`${value}.more`)).toBe(false)
       })
     )
 

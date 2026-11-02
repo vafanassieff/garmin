@@ -30,7 +30,9 @@ export class ToolError extends Schema.TaggedError<ToolError>()('ToolError', {
   message: Schema.String,
 }) {}
 
-const Day = Schema.String.annotate({ description: 'YYYY-MM-DD' })
+const Day = Schema.String.check(Schema.isPattern(/^\d{4}-\d{2}-\d{2}$/u)).annotate({
+  description: 'YYYY-MM-DD',
+})
 
 const ListActivities = Tool.make('list_activities', {
   description:

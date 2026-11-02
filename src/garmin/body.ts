@@ -7,7 +7,7 @@ import { GarminError } from './errors.ts'
 // few (a bigger one would only fill the memory)
 export const MAX_BODY = 64 * 1024 * 1024
 
-// The body, refused past `max` bytes as it arrives
+// The body, refused past `max` bytes as it arrives, or past 60 seconds
 export const body = (
   what: string,
   response: HttpClientResponse.HttpClientResponse,
@@ -26,6 +26,11 @@ export const body = (
     }
   ).pipe(
     Effect.map(({ chunks }) => new Uint8Array(Buffer.concat(chunks))),
+    // A stalled body would hold the sync's lock for good
+    Effect.timeoutOrElse({
+      duration: '60 seconds',
+      orElse: () => Effect.fail(new GarminError({ message: `${what}: body not read in 60 s` })),
+    }),
     Effect.mapError((error) =>
       error._tag === 'GarminError'
         ? error
