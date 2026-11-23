@@ -3,10 +3,12 @@ import { createFileRoute, Link } from '@tanstack/react-router'
 import { api } from '#src/api/client.ts'
 import { LineChart, shortDay, StackedColumns } from '#src/components/charts.tsx'
 import { dayLabel, fmt, hours, longDay, numericDay, pace, sport } from '#src/components/format.ts'
-import type { Period, Week } from '#src/stats.ts'
+import type { Morning, Period, Week } from '#src/stats.ts'
+import type { Burn, Light, Verdict } from '#src/today.ts'
 
-// The dashboard: the Garmin connection at a glance, the last 7 days, the last night, 12 weeks of
-// training, 28 days of recovery, the latest activities
+// The dashboard: the Garmin connection at a glance, today (the verdict on the night, the plan,
+// the energy, the journal), the last 7 days, the last night, 12 weeks of training, 28 days of
+// recovery, the latest activities
 export const Route = createFileRoute('/')({
   loader: () => api.web.dashboard(),
   head: () => ({ meta: [{ title: 'Garmin · stats' }] }),
@@ -55,6 +57,152 @@ function Tile({
       </div>
       {children}
     </div>
+  )
+}
+
+// The light as words too, never as a color alone
+const LIGHTS: Record<
+  Light,
+  { readonly label: string; readonly status: string; readonly advice: string }
+> = {
+  green: { label: 'Feu vert', status: 'good', advice: 'La séance prévue peut se faire.' },
+  orange: {
+    label: 'Facile seulement',
+    status: 'wait',
+    advice: "Pas d'intensité aujourd'hui : footing facile, vélo, renforcement léger.",
+  },
+  red: {
+    label: 'Repos ou très facile',
+    status: 'bad',
+    advice: 'Récupère : repos, marche ou vélo très tranquille.',
+  },
+}
+
+function VerdictCard({ verdict }: { verdict: Verdict }) {
+  if (verdict.kind === 'no-night') {
+    return (
+      <div className="card">
+        <span className="status wait">Nuit pas encore synchronisée</span>
+        <p className="note">Pas encore de nuit aujourd'hui : synchronise ta montre.</p>
+      </div>
+    )
+  }
+  if (verdict.kind === 'too-few') {
+    return (
+      <div className="card">
+        <span className="status wait">Pas assez de données</span>
+        <p className="note">
+          Il faut 7 nuits sur les 28 derniers jours pour connaître ta normale : HRV{' '}
+          {verdict.nights.hrv}, FC au repos {verdict.nights.resting_hr}.
+        </p>
+      </div>
+    )
+  }
+  const light = LIGHTS[verdict.light]
+  return (
+    <div className="card">
+      <span className={`status ${light.status}`}>{light.label}</span>
+      <p className="note">{light.advice}</p>
+      {verdict.reasons.length > 0 ? (
+        <ul>
+          {verdict.reasons.map((reason) => (
+            <li key={reason}>{reason}</li>
+          ))}
+        </ul>
+      ) : null}
+      <p className="sub">
+        HRV {fmt(verdict.hrv?.value)} ms (normale {fmt(verdict.hrv?.normal)}) · FC au repos{' '}
+        {fmt(verdict.resting_hr?.value)} bpm (normale {fmt(verdict.resting_hr?.normal)}) ·
+        récupération {fmt(verdict.recovery_h)} h
+      </p>
+    </div>
+  )
+}
+
+function PlanCard({ planned }: { planned: Morning['planned'] }) {
+  return (
+    <div className="card">
+      <h2>Séance prévue</h2>
+      {planned.length === 0 ? (
+        <p className="note">Pas de séance prévue aujourd'hui.</p>
+      ) : (
+        planned.map((workout) => (
+          <div key={workout.id}>
+            <p>
+              <strong>{workout.name}</strong>
+              {workout.minutes === null ? '' : ` · ${fmt(workout.minutes)} min`}
+              {workout.kcal === null ? '' : ` · ~${fmt(workout.kcal)} kcal`}
+            </p>
+            {workout.steps ? (
+              <ul>
+                {workout.steps.split('\n').map((step, index) => (
+                  // A fixed list: its lines may repeat (interval, recovery, interval…)
+                  <li key={index}>{step}</li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+const burnLine = (burn: Burn): string => {
+  switch (burn.kind) {
+    case 'known':
+      return `${fmt(burn.total)} kcal : repos ${fmt(burn.rest)} + séances ${fmt(burn.sessions)}`
+    case 'session-unknown':
+      return `${fmt(burn.rest)} kcal au repos, coût de la séance inconnu`
+    case 'no-rest':
+      return 'Pas encore de jour de repos mesuré'
+  }
+}
+
+function EnergyCard({ burn, protein_g, weighed }: Pick<Morning, 'burn' | 'protein_g' | 'weighed'>) {
+  return (
+    <div className="card">
+      <h2>Énergie</h2>
+      <p>Dépense prévue : {burnLine(burn)}</p>
+      <p>
+        Protéines :{' '}
+        {protein_g === null ? 'pèse-toi pour avoir ta cible' : `${fmt(protein_g)} g (1,8 g/kg)`}
+      </p>
+      <p>Pesée du jour : {weighed ? 'faite' : 'pas encore'}</p>
+    </div>
+  )
+}
+
+function JournalCard({ notes }: { notes: Morning['notes'] }) {
+  return (
+    <div className="card">
+      <h2>Journal, 14 jours</h2>
+      {notes.length === 0 ? (
+        <p className="note">Aucune note : l'outil MCP log_note les ajoute ici.</p>
+      ) : (
+        <ul>
+          {notes.map((note) => (
+            <li key={note.time}>
+              <strong>{dayLabel(note.day)}</strong> : {note.text}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  )
+}
+
+function Today({ morning }: { morning: Morning }) {
+  return (
+    <section>
+      <h2>Aujourd'hui</h2>
+      <div className="grid cols-3">
+        <VerdictCard verdict={morning.verdict} />
+        <PlanCard planned={morning.planned} />
+        <EnergyCard burn={morning.burn} protein_g={morning.protein_g} weighed={morning.weighed} />
+      </div>
+      <JournalCard notes={morning.notes} />
+    </section>
   )
 }
 
@@ -110,6 +258,8 @@ function Dashboard() {
           {garmin.session.logged_in ? 'Gérer la connexion' : 'Connecter mon compte →'}
         </Link>
       </div>
+
+      <Today morning={d.morning} />
 
       {empty ? (
         <section className="card">

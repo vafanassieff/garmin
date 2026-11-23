@@ -3,8 +3,10 @@ import { Context, Effect, Layer } from 'effect'
 
 import { addDays, daysBetween, earlierDay, parisToday } from './days.ts'
 import { Database, type DatabaseError } from './db.ts'
+import type { JournalNote } from './journal/note.ts'
 import { mean, present, round } from './numbers.ts'
 import { decode, type Point } from './polyline.ts'
+import { type Burn, plannedBurn, type Reading, verdict, type Verdict } from './today.ts'
 import { decoupling, kmSplits, type SamplePoint, type Split } from './tools.ts'
 
 // The web pages' numbers (routes/): plain JSON, computed in SQLite
@@ -57,8 +59,35 @@ export interface RecentActivity {
   readonly training_load: number | null
 }
 
+// A workout of today's Garmin calendar, and what it should burn
+export interface PlannedToday {
+  // Its calendar entry
+  readonly id: number
+  readonly name: string
+  readonly minutes: number | null
+  readonly steps: string | null
+  // Its calories as Garmin counts an activity's (resting ones included): its duration at the rate of
+  // that sport's activities over the 90 days before today; null without a duration or a rate
+  readonly kcal: number | null
+}
+
+// The morning: the verdict on the night, the day's plan and energy, the journal
+export interface Morning {
+  readonly verdict: Verdict
+  readonly planned: ReadonlyArray<PlannedToday>
+  // The mean total burn of the 28 days before today without an activity, plus the planned sessions
+  readonly burn: Burn
+  // 1.8 g per kg of the latest weight
+  readonly protein_g: number | null
+  // A weigh-in today
+  readonly weighed: boolean
+  // The last 14 days', newest first
+  readonly notes: ReadonlyArray<JournalNote>
+}
+
 export interface Dashboard {
   readonly today: string
+  readonly morning: Morning
   readonly totals: Totals
   readonly last7: Period
   readonly previous7: Period
@@ -407,6 +436,45 @@ export class Stats extends Context.Service<
           (rows) => rows[0] ?? { activities: 0, distance_km: 0, moving_h: 0, training_load: 0 }
         )
 
+      const morningOf = Effect.fnUntraced(function* (today: string) {
+        const readings = yield* all<Reading>(sql`
+          SELECT day, hrv, resting_hr, recovery_time_h FROM daily
+          WHERE day BETWEEN ${addDays(today, -28)} AND ${today}`)
+        const planned = yield* all<PlannedToday>(sql`
+          SELECT p.id, p.name, p.steps, p.estimated_duration_s / 60.0 AS minutes,
+            (SELECT p.estimated_duration_s * sum(calories) * 1.0 / sum(${sql.raw(TIME)})
+              FROM activities
+              WHERE calories IS NOT NULL AND ${sql.raw(TIME)} > 0
+                AND day BETWEEN ${addDays(today, -90)} AND ${addDays(today, -1)}
+                AND (sport LIKE '%' || p.sport || '%' OR (p.sport = 'cycling' AND ${sql.raw(BIKE)}))
+            ) AS kcal
+          FROM planned_workouts p WHERE p.day = ${today} ORDER BY p.id`)
+        const [energy] = yield* all<{
+          rest_kcal: number | null
+          protein_g: number | null
+          weighed: number
+        }>(sql`
+          SELECT
+            (SELECT round(avg(total_kcal)) FROM daily d
+              WHERE d.day BETWEEN ${addDays(today, -28)} AND ${addDays(today, -1)}
+                AND d.total_kcal > 0
+                AND NOT EXISTS (SELECT 1 FROM activities a WHERE a.day = d.day)) AS rest_kcal,
+            (SELECT round(1.8 * weight_kg) FROM body WHERE weight_kg IS NOT NULL
+              ORDER BY time DESC LIMIT 1) AS protein_g,
+            EXISTS (SELECT 1 FROM body WHERE day = ${today}) AS weighed`)
+        const notes = yield* all<JournalNote>(sql`
+          SELECT time, day, text FROM journal
+          WHERE day BETWEEN ${addDays(today, -13)} AND ${today} ORDER BY day DESC, time DESC`)
+        return {
+          verdict: verdict(today, readings),
+          planned,
+          burn: plannedBurn(energy?.rest_kcal ?? null, planned),
+          protein_g: energy?.protein_g ?? null,
+          weighed: energy?.weighed === 1,
+          notes,
+        } satisfies Morning
+      })
+
       const dashboard = Effect.gen(function* () {
         const today = yield* parisToday
         const [totals] = yield* all<Totals>(sql`
@@ -461,6 +529,7 @@ export class Stats extends Context.Service<
           FROM activities ORDER BY start_local DESC LIMIT 12`)
         return {
           today,
+          morning: yield* morningOf(today),
           totals: totals ?? { activities: 0, first_day: null, days: 0, distance_km: 0 },
           last7,
           previous7,

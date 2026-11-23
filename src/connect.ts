@@ -173,6 +173,8 @@ const ms = (value: number | null | undefined) =>
   value === null || value === undefined ? null : value / 1000
 const cm = (value: number | null | undefined) =>
   value === null || value === undefined ? null : value / 100
+const hoursOfMinutes = (value: number | null | undefined) =>
+  value === null || value === undefined ? null : Math.round(value / 60)
 
 export const exportActivity = (json: unknown): Option.Option<ActivitySummary> =>
   Schema.decodeUnknownOption(ExportActivity)(json).pipe(
@@ -383,7 +385,7 @@ const readinessRow = (r: ReadinessRecord, day: string): DailyRow => ({
   readiness: r.score,
   readiness_level: nullable(r.level),
   readiness_feedback: nullable(r.feedbackShort),
-  recovery_time_h: nullable(r.recoveryTime),
+  recovery_time_h: hoursOfMinutes(r.recoveryTime),
   acute_load: nullable(r.acuteLoad),
 })
 

@@ -213,4 +213,18 @@ layer(TestLayer, { excludeTestServices: true })('Ingest', (it) => {
       expect(yield* weighIns).toEqual(withingsRows)
     })
   )
+
+  it.effect('files the journal: a note per file, kept across a rebuild', () =>
+    Effect.gen(function* () {
+      const note = { time: '2024-04-02T18:30:00.000Z', day: '2024-04-02', text: 'Quadri raide' }
+      yield* put('journal/2024/2024-04-02T18-30-00.000Z.json', note)
+      yield* put('journal/2024/broken.json', { day: '2024-04-02', text: '' })
+      const summary = yield* run()
+      expect(summary.errors).toEqual(['journal/2024/broken.json: not a journal note'])
+      const notes = rows(sql`SELECT time, day, text FROM journal`)
+      expect(yield* notes).toEqual([note])
+      yield* run({ rebuild: true })
+      expect(yield* notes).toEqual([note])
+    })
+  )
 })

@@ -82,6 +82,8 @@ describe('days', () => {
       steps: 8420,
       readiness: 88,
       readiness_level: 'HIGH',
+      // Garmin's 360 minutes
+      recovery_time_h: 6,
       acute_load: 61,
       vo2max: 51.3,
       race_half_s: 6440,

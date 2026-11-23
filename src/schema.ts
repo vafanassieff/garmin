@@ -175,6 +175,7 @@ export const daily = sqliteTable('daily', {
   readiness: integer(),
   readiness_level: text(),
   readiness_feedback: text(),
+  // Garmin's recovery time left, in hours
   recovery_time_h: integer(),
   acute_load: real(),
   chronic_load: real(),
@@ -225,6 +226,19 @@ export const plannedWorkouts = sqliteTable(
     steps: text(),
   },
   (table) => [index('planned_workouts_day').on(table.day)]
+)
+
+// The user's notes (the MCP's log_note), one file each in data/journal/ (see journal/note.ts)
+export const journal = sqliteTable(
+  'journal',
+  {
+    // The instant it was written
+    time: text().primaryKey(),
+    // The day it is about
+    day: text().notNull(),
+    text: text().notNull(),
+  },
+  (table) => [index('journal_day').on(table.day)]
 )
 
 // Every file of data/ ingested: one whose size and mtime have not changed is not read again

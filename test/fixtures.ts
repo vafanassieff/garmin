@@ -207,6 +207,7 @@ export const dailyFile = (day: string) => ({
   stats: {
     calendarDate: day,
     totalSteps: 8420,
+    totalKilocalories: 2160,
     restingHeartRate: 58,
     averageStressLevel: 27,
     bodyBatteryAtWakeTime: 71,
@@ -254,7 +255,8 @@ export const dailyFile = (day: string) => ({
       score: 88,
       level: 'HIGH',
       feedbackShort: 'READY_FOR_ACTION',
-      recoveryTime: 6,
+      // Minutes
+      recoveryTime: 360,
       acuteLoad: 61,
       inputContext: 'AFTER_WAKEUP_RESET',
       hrvFactorPercent: 100,

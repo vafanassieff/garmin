@@ -76,6 +76,85 @@ layer(TestLayer, { excludeTestServices: true })('Stats', (it) => {
   )
 })
 
+layer(TestLayer, { excludeTestServices: true })('Stats, the morning', (it) => {
+  it.effect("reads today's plan, energy and journal", () =>
+    Effect.gen(function* () {
+      const today = yield* parisToday
+      const before = addDays(today, -3)
+      // A past run to price today's: 300 kcal over 1190 s
+      yield* put('fit/2026/43.fit', fitRun({ start: new Date(`${before}T06:12:40Z`) }))
+      yield* put(
+        'connect/activities/2026/43.json',
+        apiSummary(43, { startTimeLocal: `${before} 07:12:40`, startTimeGMT: `${before} 06:12:40` })
+      )
+      // A week of nights (52 ms, 58 bpm) and today's: a normal to judge it by. The days without an
+      // activity burnt 2160 kcal; the run's day, 3000, is no rest day, nor today, partial (800)
+      for (const day of [
+        today,
+        ...Array.from({ length: 7 }, (_, index) => addDays(today, -1 - index)),
+      ]) {
+        const file = dailyFile(day)
+        yield* put(
+          `connect/daily/${day.slice(0, 4)}/${day}.json`,
+          day === before || day === today
+            ? { ...file, stats: { ...file.stats, totalKilocalories: day === today ? 800 : 3000 } }
+            : file
+        )
+      }
+      yield* put(`connect/calendar/${today.slice(0, 7)}.json`, {
+        calendarItems: [
+          { id: 1, itemType: 'workout', title: 'Footing', date: today, workoutId: 9 },
+        ],
+      })
+      yield* put('connect/workouts/9.json', {
+        workoutId: 9,
+        workoutName: 'Footing',
+        sportType: { sportTypeKey: 'running' },
+        estimatedDurationInSecs: 1800,
+        workoutSegments: [],
+      })
+      yield* put(`connect/body/${today.slice(0, 7)}.json`, {
+        startDate: `${today.slice(0, 7)}-01`,
+        endDate: today,
+        dateWeightList: [
+          {
+            calendarDate: today,
+            timestampGMT: Date.parse(`${today}T06:00:00Z`),
+            weight: 70_000,
+            sourceType: 'INDEX_SCALE',
+          },
+        ],
+      })
+      const note = { time: `${today}T08:00:00.000Z`, day: today, text: 'Quadri raide' }
+      yield* put(`journal/${today.slice(0, 4)}/${today}T08-00-00.000Z.json`, note)
+      // The 14 days shown, and one older
+      const last = addDays(today, -13)
+      const lastNote = { time: `${last}T08:00:00.000Z`, day: last, text: 'Ampoule' }
+      yield* put(`journal/${last.slice(0, 4)}/${last}T08-00-00.000Z.json`, lastNote)
+      const old = addDays(today, -14)
+      yield* put(`journal/${old.slice(0, 4)}/${old}T08-00-00.000Z.json`, {
+        ...note,
+        time: `${old}T08:00:00.000Z`,
+        day: old,
+      })
+      yield* Ingest.use((ingest) => ingest.run())
+
+      const { morning } = yield* Stats.use((stats) => stats.dashboard)
+      // Today's night on its normal, Garmin's 6 hours of recovery left
+      expect(morning.verdict).toMatchObject({ kind: 'judged', light: 'green', recovery_h: 6 })
+      // 1800 s at 300 kcal per 1190 s
+      expect(morning.planned).toEqual([
+        { id: 1, name: 'Footing', steps: null, minutes: 30, kcal: expect.closeTo(453.78, 2) },
+      ])
+      // 454 less 30 minutes of the resting 2160 a day
+      expect(morning.burn).toEqual({ kind: 'known', rest: 2160, sessions: 409, total: 2569 })
+      expect(morning.protein_g).toBe(126)
+      expect(morning.weighed).toBe(true)
+      expect(morning.notes).toEqual([note, lastNote])
+    })
+  )
+})
+
 const night = (overrides: Partial<SleepNight>): SleepNight => ({
   day: '2026-10-31',
   sleep_start: null,

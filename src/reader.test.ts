@@ -100,6 +100,7 @@ layer(withTimeout(Reader.layer), { excludeTestServices: true })('Reader', (it) =
         'activity_summary',
         'body',
         'daily',
+        'journal',
         'laps',
         'planned_workouts',
         'raw_files',

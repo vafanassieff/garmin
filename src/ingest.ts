@@ -20,8 +20,18 @@ import {
 } from './connect.ts'
 import { Database, type DatabaseError } from './db.ts'
 import { parseFit, type FitActivity } from './fit.ts'
+import { decodeNote } from './journal/note.ts'
 import { runMain } from './main.ts'
-import { activities, body, daily, laps, plannedWorkouts, rawFiles, samples } from './schema.ts'
+import {
+  activities,
+  body,
+  daily,
+  journal,
+  laps,
+  plannedWorkouts,
+  rawFiles,
+  samples,
+} from './schema.ts'
 import { SOURCE as WITHINGS, withingsBody } from './withings/measures.ts'
 
 // data/ → SQLite. The files are the source of truth (see README.md): each pass reads only those
@@ -45,6 +55,7 @@ type Kind =
   | { readonly kind: 'daily' }
   | { readonly kind: 'body' }
   | { readonly kind: 'withings' }
+  | { readonly kind: 'journal' }
   | { readonly kind: 'calendar' }
   | { readonly kind: 'workout'; readonly id: number }
   | { readonly kind: 'export' }
@@ -58,6 +69,7 @@ const classify = (path: string): Kind | null => {
   if (/^connect\/daily\/\d{4}\/\d{4}-\d{2}-\d{2}\.json$/u.test(path)) return { kind: 'daily' }
   if (/^connect\/body\/\d{4}-\d{2}\.json$/u.test(path)) return { kind: 'body' }
   if (/^withings\/\d{4}-\d{2}\.json$/u.test(path)) return { kind: 'withings' }
+  if (/^journal\/\d{4}\/[^/]+\.json$/u.test(path)) return { kind: 'journal' }
   if (/^connect\/calendar\/\d{4}-\d{2}\.json$/u.test(path)) return { kind: 'calendar' }
   match = /^connect\/workouts\/(\d+)\.json$/u.exec(path)
   if (match) return { kind: 'workout', id: Number(match[1]) }
@@ -202,6 +214,7 @@ export class Ingest extends Context.Service<
                 daily,
                 body,
                 plannedWorkouts,
+                journal,
                 rawFiles,
               ]) {
                 tx.delete(table).run()
@@ -356,6 +369,21 @@ export class Ingest extends Context.Service<
             weighIns += month.rows.length
           }
           yield* done(file, month === null ? 'not a Withings month' : null)
+        }
+
+        for (const file of changed.filter((f) => f.kind?.kind === 'journal')) {
+          const json = yield* readJson(file.path).pipe(Effect.option)
+          const note = Option.flatMap(json, decodeNote)
+          if (Option.isSome(note)) {
+            yield* use((db) =>
+              db
+                .insert(journal)
+                .values(note.value)
+                .onConflictDoUpdate({ target: journal.time, set: excludedAll(journal, 'time') })
+                .run()
+            )
+          }
+          yield* done(file, Option.isNone(note) ? 'not a journal note' : null)
         }
 
         // Activities: each one touched by a changed FIT file or summary, rebuilt from both

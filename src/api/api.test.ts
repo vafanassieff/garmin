@@ -71,6 +71,7 @@ describe('the MCP', () => {
       'get_activity',
       'list_activities',
       'list_workouts',
+      'log_note',
       'planned_workouts',
       'schedule_workout',
       'schema',
@@ -117,6 +118,14 @@ describe('the MCP', () => {
     expect(await call('find_exercises', { query: 'side plank', limit: 1 })).toEqual({
       isError: false,
       data: { exercises: [{ name: 'Side Plank', category: 'PLANK', exercise_name: 'SIDE_PLANK' }] },
+    })
+    expect(await call('log_note', { text: 'Quadri raide' })).toMatchObject({
+      isError: false,
+      data: { day: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/u), text: 'Quadri raide' },
+    })
+    expect(await call('log_note', { day: '23/11', text: 'x' })).toMatchObject({
+      isError: true,
+      data: { code: 'BAD_REQUEST', data: { issues: [{ path: ['day'] }] } },
     })
     expect(await call('get_activity', { id: 404 })).toMatchObject({
       isError: true,

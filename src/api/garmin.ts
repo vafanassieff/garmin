@@ -4,6 +4,8 @@ import { Effect, Schema } from 'effect'
 import { GarminLogin } from '../garmin/login.ts'
 import { findExercises, WorkoutSchema } from '../garmin/workout-builder.ts'
 import { GarminWorkouts } from '../garmin/workouts.ts'
+import { Journal } from '../journal/log.ts'
+import { JournalNoteJson } from '../journal/note.ts'
 import { MAX_ROWS, Reader } from '../reader.ts'
 import { Tools } from '../tools.ts'
 import { withingsStatus } from '../withings/sync.ts'
@@ -13,17 +15,18 @@ import { Day, standard, tool } from './base.ts'
 // The Garmin data and the watch's workouts: each procedure an MCP tool (its name), an OpenAPI
 // operation (under /api) and an RPC call (under /rpc). The tools' names and inputs are the MCP's.
 
-const DATA_MODEL = `Data: the user's Garmin history (watch, scale): every activity from its FIT file (laps, per-second samples) and Garmin Connect's summary, plus daily wellness (sleep, HRV, resting HR, body battery, readiness), weigh-ins and the Garmin calendar's planned workouts. Synced from Garmin Connect every 3 hours (sync_status tells when). The SQL is read-only; the workout tools (create_workout, schedule_workout, unschedule_workout, delete_workout) write to the Garmin calendar and refresh planned_workouts right after.
+const DATA_MODEL = `Data: the user's Garmin history (watch, scale): every activity from its FIT file (laps, per-second samples) and Garmin Connect's summary, plus daily wellness (sleep, HRV, resting HR, body battery, readiness), weigh-ins and the Garmin calendar's planned workouts. Synced from Garmin Connect every 3 hours (sync_status tells when). The SQL is read-only; the workout tools (create_workout, schedule_workout, unschedule_workout, delete_workout) write to the Garmin calendar and refresh planned_workouts right after; log_note adds a note to the user's journal.
 Conventions: timestamps ISO 8601 UTC text, start_local local wall time, day YYYY-MM-DD (local). Metres, seconds, m/s, bpm, kg. Cadence is steps/min on foot, rpm on a bike.
 Tables and views:
 - activities: one row per Garmin Connect activity (id = its activity id). sport (Connect's type: running, trail_running, cycling, lap_swimming, hiking, strength_training…), name, start_time, start_local, day, elapsed_s, moving_s, distance_m, ascent_m, descent_m, avg_hr, max_hr, avg_speed, max_speed, avg_cadence, max_cadence, avg_power, max_power, norm_power, calories, training_load (Garmin's EPOC load), aerobic_te / anaerobic_te (training effect 0-5), te_label (TEMPO, BASE…), vo2max, rpe (0-10) and feel (0-100) entered after it, hr_z1_s…hr_z5_s (seconds in the watch's HR zones), hr_zone_bounds (JSON: the zones' top bounds [z0, z1…z5]), workout_name (the structured workout run, as in planned_workouts.name), gear, device, start_lat/start_lon, polyline (Google encoded, precision 5).
 - activity_summary (view): the same in Connect's units: distance_km, moving_min, pace_min_km (m:ss, on foot), speed_kmh, z1_min…z5_min. Use it to list activities.
 - laps: activity_id, idx (0-based), start_time, elapsed_s, moving_s, distance_m, avg_hr, max_hr, avg_speed, max_speed, avg_cadence, avg_power, ascent_m, descent_m, intensity (active, rest, warmup, cooldown), trigger (manual, distance…), workout_step.
 - samples: per second: activity_id, t (seconds from start), lat, lon, alt, hr, speed, cadence, power, distance (cumulative m). Large: always filter by activity_id.
-- daily: one row per day. Sleep is the night ending that morning: sleep_start, sleep_end, sleep_s, deep_s, light_s, rem_s, awake_s, nap_s, sleep_score; hrv (overnight average, ms), hrv_weekly, hrv_status (BALANCED, UNBALANCED, LOW…), hrv_baseline_low/high; resting_hr, min_hr, max_hr; body_battery_high/low/wake/charged/drained; steps, distance_m, active_kcal, total_kcal; stress_avg, stress_max; intensity_moderate_min, intensity_vigorous_min; respiration_avg, spo2_avg; readiness (the morning's training readiness 0-100), readiness_level, readiness_feedback, recovery_time_h, acute_load (Garmin's 7-day acute load); chronic_load, training_status; vo2max / vo2max_cycling (only on days measured); race_5k_s, race_10k_s, race_half_s, race_marathon_s (Garmin's predictions).
+- daily: one row per day. Sleep is the night ending that morning: sleep_start, sleep_end, sleep_s, deep_s, light_s, rem_s, awake_s, nap_s, sleep_score; hrv (overnight average, ms), hrv_weekly, hrv_status (BALANCED, UNBALANCED, LOW…), hrv_baseline_low/high; resting_hr, min_hr, max_hr; body_battery_high/low/wake/charged/drained; steps, distance_m, active_kcal, total_kcal; stress_avg, stress_max; intensity_moderate_min, intensity_vigorous_min; respiration_avg, spo2_avg; readiness (the morning's training readiness 0-100), readiness_level, readiness_feedback, recovery_time_h (Garmin's recovery time left, hours), acute_load (Garmin's 7-day acute load); chronic_load, training_status; vo2max / vo2max_cycling (only on days measured); race_5k_s, race_10k_s, race_half_s, race_marathon_s (Garmin's predictions).
 - weekly (view): per ISO week (week = Monday) and sport: activities, distance_km, moving_h, ascent_m, training_load, longest_km, z4_z5_min.
 - body: weigh-ins: time, day, weight_kg, bmi, body_fat_pct, body_water_pct, muscle_mass_kg, bone_mass_kg, visceral_fat, source ('WITHINGS' for the Withings scale, synced on its own every 3 hours; else Garmin's source type, e.g. INDEX_SCALE, MANUAL).
 - planned_workouts: the Garmin calendar's scheduled workouts: id (the calendar entry: unschedule_workout's schedule_id), day, workout_id (the library's workout: schedule_workout, delete_workout), name, sport, description, estimated_duration_s, estimated_distance_m, steps (one readable line per step: "interval 3:00 HR 165-172", "5× [...]").
+- journal: the user's notes (log_note): time (the instant written, its key), day (the day it is about), text; one file each in data/journal/.
 - raw_files: the source files ingested (path, error).
 - sync_runs: each sync with Garmin Connect: started_at, finished_at, ok, logged_out, account, since, files_written, warnings (JSON), error.`
 
@@ -269,6 +272,33 @@ const sql = tool({
     )
   )
 
+// --- The user's journal: what the data does not say (a pain, a feeling, a meal)
+
+const logNote = tool({
+  name: 'log_note',
+  title: "Add a note to the user's journal",
+  description:
+    "Keep a note in the user's journal, in their words: a pain and where, how a run felt, sleep, food, alcohol, an injury's progress. It is written to its own file in data/journal/ (kept across rebuilds) and shows on the web app's home page for 14 days; the journal table holds them all for the SQL. Returns the note as saved.",
+  method: 'POST',
+  path: '/journal',
+  tags: ['journal'],
+  readOnly: false,
+  openWorld: false,
+})
+  .input(
+    standard(
+      Schema.Struct({
+        day: opt(
+          JournalNoteJson.fields.day.annotate({ description: 'YYYY-MM-DD, default today (Paris)' })
+        ),
+        text: JournalNoteJson.fields.text.annotate({
+          description: "The note, in the user's words (at most 2000 characters)",
+        }),
+      })
+    )
+  )
+  .handler(({ input, context }) => context.run(Journal.use((journal) => journal.log(input))))
+
 // --- The workouts on the watch: these change the user's real Garmin Connect account
 
 const createWorkout = tool({
@@ -435,6 +465,7 @@ export const garmin = {
   syncStatus,
   schema,
   sql,
+  journal: { log: logNote },
   workouts: {
     create: createWorkout,
     schedule: scheduleWorkout,
